@@ -13,8 +13,10 @@ Configure via backend/.env:
   LLM_PROVIDER=none                      # deterministic templates, no API cost
 """
 
+import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +34,7 @@ class ResumeFeedback:
     missing_skills: List[str]
     ats_optimization_tips: List[str]
     overall_assessment: str
+    interview_questions: List[str]
 
     def dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -67,8 +70,11 @@ Return ONLY a JSON object with exactly these keys:
   "improvement_suggestions": ["suggestion 1", "suggestion 2", "suggestion 3", "suggestion 4", "suggestion 5"],
   "missing_skills": ["skill1", "skill2", "skill3"],
   "ats_optimization_tips": ["tip 1", "tip 2", "tip 3", "tip 4"],
-  "overall_assessment": "1-2 sentence assessment explaining the ATS score"
-}}"""
+  "overall_assessment": "1-2 sentence assessment explaining the ATS score",
+  "interview_questions": ["Behavioral or technical question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
+}}
+
+For interview_questions: generate 5 questions a hiring manager would likely ask this specific candidate based on their experience, skills, and resume content."""
 
 _JOB_MATCH_PROMPT = """Analyze how well this resume matches the job description.
 
@@ -164,6 +170,7 @@ class LLMService:
             missing_skills=list(data.get("missing_skills", [])),
             ats_optimization_tips=list(data.get("ats_optimization_tips", [])),
             overall_assessment=str(data.get("overall_assessment", "")),
+            interview_questions=list(data.get("interview_questions", [])),
         )
 
     async def generate_job_match_feedback(
@@ -235,36 +242,95 @@ class LLMService:
     # ── Gemini (google-genai v2 SDK) ──────────────────────────────────────────
 
     async def _call_gemini(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """
+        Call Gemini with a hard 25-second timeout.
+
+        The google-genai SDK retries 503s internally (via tenacity) with up to 60 s
+        of back-off, which causes the browser to hit ECONNRESET before the server
+        responds.  The asyncio.wait_for() wrapper cuts that off early and lets the
+        endpoint fall back to the template response instead of dropping the connection.
+        """
         try:
-            from google import genai                           # google-genai package
+            from google import genai
             from google.genai import types as genai_types
             from google.genai import errors as genai_errors
 
             if self._gemini_client is None:
                 self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-            response = await self._gemini_client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=prompt,
-                config=genai_types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3,
-                    max_output_tokens=1500,
-                ),
+            cfg = genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3,
+                max_output_tokens=2048,
             )
 
-            raw = (response.text or "{}").strip()
+            # Hard time-box the whole call (including any SDK-internal retries).
+            response = await asyncio.wait_for(
+                self._gemini_client.aio.models.generate_content(
+                    model=settings.GEMINI_MODEL,
+                    contents=prompt,
+                    config=cfg,
+                ),
+                timeout=25.0,
+            )
 
-            # Belt-and-suspenders: strip any accidental markdown fences
-            if raw.startswith("```"):
-                parts = raw.split("```")
-                raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else "{}"
+            raw = (response.text or "").strip()
+            return self._extract_json(raw)
 
-            return json.loads(raw)
+        except asyncio.TimeoutError:
+            logger.error(
+                "Gemini call timed out after 25 s (model may be overloaded). "
+                "Falling back to template response."
+            )
+            return None
+
+        except asyncio.CancelledError:
+            # Client disconnected — propagate so asyncio can clean up the task.
+            raise
 
         except Exception as exc:
             self._handle_gemini_error(exc)
             return None
+
+    @staticmethod
+    def _extract_json(raw: str) -> Optional[Dict[str, Any]]:
+        """
+        Robustly extract a JSON object from a Gemini response string.
+
+        Handles:
+         - Pure JSON  {"key": ...}
+         - Markdown fences  ```json\\n{...}\\n```
+         - Preamble text  "Here is the JSON:\\n{...}"
+        """
+        if not raw:
+            return None
+
+        # 1. Try parsing the whole string first (happy path when mime-type is honoured)
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        # 2. Strip markdown code fences
+        if "```" in raw:
+            parts = raw.split("```")
+            for part in parts:
+                candidate = part.lstrip("json").strip()
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    continue
+
+        # 3. Pull the first {...} block out of surrounding prose
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        logger.error("Could not extract JSON from Gemini response: %.200s", raw)
+        return None
 
     def _handle_gemini_error(self, exc: Exception) -> None:
         """Log a Gemini error with a human-readable hint."""
@@ -371,6 +437,13 @@ class LLMService:
                 f"This resume has {len(skills)} detected skill(s) and {experience_years:.0f} year(s) of experience. "
                 "Apply the suggestions above to maximize ATS compatibility and recruiter impact."
             ),
+            interview_questions=[
+                "Tell me about yourself and your most impactful project.",
+                f"How have you applied {skill_str.split(',')[0].strip() if skills else 'your primary technology'} in a production environment?",
+                "Describe a challenging technical problem you solved and your approach.",
+                "How do you stay current with new tools, frameworks, and industry trends?",
+                "Tell me about a time you had to collaborate cross-functionally under a tight deadline.",
+            ],
         )
 
     @staticmethod

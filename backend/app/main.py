@@ -1,5 +1,20 @@
+import asyncio
 import os
+import sys
 from contextlib import asynccontextmanager
+
+# Windows: use SelectorEventLoop so httpx/google-genai async calls work correctly.
+# ProactorEventLoop (the Windows default) has known incompatibilities with httpx.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# Inject the Windows certificate store into Python's SSL so that
+# httpx / google-genai can reach Google APIs without cert errors.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass  # truststore is Windows-only; harmless to skip on Linux/macOS
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

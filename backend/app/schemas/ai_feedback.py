@@ -9,6 +9,7 @@ class ResumeFeedbackResponse(BaseModel):
     missing_skills: List[str]
     ats_optimization_tips: List[str]
     overall_assessment: str
+    interview_questions: List[str]
 
 
 class JobMatchFeedbackResponse(BaseModel):

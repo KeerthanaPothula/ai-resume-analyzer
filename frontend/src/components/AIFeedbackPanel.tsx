@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, Loader2, Lightbulb, Target, Zap, ChevronRight,
-  Sparkles, RefreshCw, MessageSquare,
+  Sparkles, RefreshCw, MessageSquare, AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { aiFeedbackApi } from "../lib/api";
@@ -14,9 +14,9 @@ import SkillBadge from "./ui/SkillBadge";
 
 function ProviderBadge({ provider }: { provider: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    openai:   { label: "GPT-4o-mini",     cls: "bg-emerald-500/10 text-emerald-500" },
-    gemini:   { label: "Gemini",           cls: "bg-sky-500/10 text-sky-500"         },
-    template: { label: "Template-based",  cls: "bg-slate-400/10 text-slate-400"     },
+    openai:   { label: "GPT-4o-mini",    cls: "bg-emerald-500/10 text-emerald-500" },
+    gemini:   { label: "Gemini AI",      cls: "bg-sky-500/10 text-sky-500"         },
+    template: { label: "Template-based", cls: "bg-slate-400/10 text-slate-400"     },
   };
   const { label, cls } = map[provider] ?? map.template;
   return (
@@ -28,7 +28,7 @@ function ProviderBadge({ provider }: { provider: string }) {
 
 // ── Tab bar ───────────────────────────────────────────────────────────────────
 
-type ResumeTab = "summary" | "improvements" | "ats";
+type ResumeTab = "summary" | "improvements" | "ats" | "interview";
 type JobTab    = "analysis" | "questions"   | "tips";
 
 function TabBar<T extends string>({
@@ -42,29 +42,38 @@ function TabBar<T extends string>({
 }) {
   return (
     <div
-      className="flex gap-1 p-1 rounded-xl"
+      className="flex gap-1 p-1 rounded-xl overflow-x-auto"
       style={{ backgroundColor: "var(--bg-surface)" }}
     >
       {tabs.map(({ key, label, icon: Icon }) => (
         <button
           key={key}
           onClick={() => onChange(key)}
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 px-2 rounded-lg transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-medium py-1.5 px-1.5 rounded-lg transition-all whitespace-nowrap min-w-0 ${
             active === key
               ? "bg-violet-500 text-white shadow-sm"
               : "hover:opacity-70"
           }`}
           style={active !== key ? { color: "var(--text-muted)" } : {}}
         >
-          <Icon className="w-3 h-3" />
-          {label}
+          <Icon className="w-3 h-3 flex-shrink-0" />
+          <span className="truncate">{label}</span>
         </button>
       ))}
     </div>
   );
 }
 
-// ── General Resume Feedback ───────────────────────────────────────────────────
+function EmptyTabState({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-2 py-5 justify-center">
+      <AlertCircle className="w-4 h-4 opacity-30" style={{ color: "var(--text-muted)" }} />
+      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{message}</p>
+    </div>
+  );
+}
+
+// ── AI Resume Feedback Panel ──────────────────────────────────────────────────
 
 export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
   const [tab, setTab] = useState<ResumeTab>("summary");
@@ -77,13 +86,19 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
       setFeedback(data);
       toast.success("AI feedback generated");
     },
-    onError: () => toast.error("Failed to generate feedback — check server logs"),
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Failed to generate feedback — check server logs";
+      toast.error(msg);
+    },
   });
 
   const resumeTabs: { key: ResumeTab; label: string; icon: React.ElementType }[] = [
-    { key: "summary",      label: "Summary",      icon: Brain     },
-    { key: "improvements", label: "Improvements", icon: Lightbulb },
-    { key: "ats",          label: "ATS Tips",     icon: Target    },
+    { key: "summary",      label: "Summary",    icon: Brain          },
+    { key: "improvements", label: "Improve",    icon: Lightbulb      },
+    { key: "ats",          label: "ATS Tips",   icon: Target         },
+    { key: "interview",    label: "Interview",  icon: MessageSquare  },
   ];
 
   return (
@@ -132,7 +147,7 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
             Generate personalized AI feedback
           </p>
           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-            Improvement suggestions, ATS tips, and an AI-written profile summary
+            Summary · Improvements · ATS Tips · Interview Prep — powered by Gemini
           </p>
         </div>
       )}
@@ -141,7 +156,7 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
         <div className="text-center py-8">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-violet-500" />
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Analyzing resume…
+            Analyzing resume with Gemini AI…
           </p>
         </div>
       )}
@@ -157,14 +172,19 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
           >
             <TabBar tabs={resumeTabs} active={tab} onChange={setTab} />
 
+            {/* ── Summary ── */}
             {tab === "summary" && (
               <div className="space-y-3">
-                <p
-                  className="text-xs leading-relaxed"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {feedback.summary}
-                </p>
+                {feedback.summary ? (
+                  <p
+                    className="text-xs leading-relaxed"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {feedback.summary}
+                  </p>
+                ) : (
+                  <EmptyTabState message="No summary generated" />
+                )}
 
                 {feedback.overall_assessment && (
                   <div
@@ -174,10 +194,7 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
                       color: "var(--text-secondary)",
                     }}
                   >
-                    <span
-                      className="font-semibold"
-                      style={{ color: "var(--text-primary)" }}
-                    >
+                    <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
                       Assessment:{" "}
                     </span>
                     {feedback.overall_assessment}
@@ -202,38 +219,74 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
               </div>
             )}
 
+            {/* ── Improvements ── */}
             {tab === "improvements" && (
-              <ul className="space-y-2.5">
-                {feedback.improvement_suggestions.map((s, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <span className="w-5 h-5 rounded-full bg-violet-500/10 text-violet-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <p
-                      className="text-xs leading-relaxed"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {s}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              feedback.improvement_suggestions.length > 0 ? (
+                <ul className="space-y-2.5">
+                  {feedback.improvement_suggestions.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-violet-500/10 text-violet-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <p
+                        className="text-xs leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {s}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyTabState message="No improvement suggestions in this response — try regenerating" />
+              )
             )}
 
+            {/* ── ATS Tips ── */}
             {tab === "ats" && (
-              <ul className="space-y-2">
-                {feedback.ats_optimization_tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <ChevronRight className="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5" />
-                    <p
-                      className="text-xs leading-relaxed"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {tip}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              feedback.ats_optimization_tips.length > 0 ? (
+                <ul className="space-y-2">
+                  {feedback.ats_optimization_tips.map((tip, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <ChevronRight className="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5" />
+                      <p
+                        className="text-xs leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {tip}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyTabState message="No ATS tips in this response — try regenerating" />
+              )
+            )}
+
+            {/* ── Interview Prep ── */}
+            {tab === "interview" && (
+              feedback.interview_questions.length > 0 ? (
+                <ul className="space-y-2.5">
+                  {feedback.interview_questions.map((q, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span
+                        className="text-[10px] font-bold text-violet-500 flex-shrink-0 mt-0.5"
+                        style={{ minWidth: "1.5rem" }}
+                      >
+                        Q{i + 1}
+                      </span>
+                      <p
+                        className="text-xs leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {q}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyTabState message="No interview questions generated — try regenerating" />
+              )
             )}
           </motion.div>
         )}
@@ -265,18 +318,23 @@ export function AIJobMatchPanel({
       setFeedback(data);
       toast.success("Job match analysis ready");
     },
-    onError: () => toast.error("Failed to generate job match analysis"),
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Failed to generate job match analysis";
+      toast.error(msg);
+    },
   });
 
   const jobTabs: { key: JobTab; label: string; icon: React.ElementType }[] = [
-    { key: "analysis",  label: "Match Analysis", icon: Target       },
+    { key: "analysis",  label: "Match Analysis", icon: Target        },
     { key: "questions", label: "Interview Prep",  icon: MessageSquare },
     { key: "tips",      label: "ATS Tips",        icon: Lightbulb    },
   ];
 
   const recColor = (rec: string) => {
-    if (rec.startsWith("Strong")) return "text-emerald-500";
-    if (rec.startsWith("Good"))   return "text-sky-500";
+    if (rec.startsWith("Strong"))   return "text-emerald-500";
+    if (rec.startsWith("Good"))     return "text-sky-500";
     if (rec.startsWith("Moderate")) return "text-amber-500";
     return "text-red-400";
   };
@@ -315,7 +373,7 @@ export function AIJobMatchPanel({
         <div className="flex items-center gap-2 py-3 justify-center">
           <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Analyzing…
+            Analyzing with Gemini AI…
           </span>
         </div>
       )}
@@ -336,11 +394,16 @@ export function AIJobMatchPanel({
 
             <TabBar tabs={jobTabs} active={tab} onChange={setTab} />
 
+            {/* ── Match Analysis ── */}
             {tab === "analysis" && (
               <div className="space-y-3">
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                  {feedback.match_analysis}
-                </p>
+                {feedback.match_analysis ? (
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    {feedback.match_analysis}
+                  </p>
+                ) : (
+                  <EmptyTabState message="No match analysis generated" />
+                )}
                 {feedback.missing_skills.length > 0 && (
                   <div>
                     <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-muted)" }}>
@@ -356,35 +419,45 @@ export function AIJobMatchPanel({
               </div>
             )}
 
+            {/* ── Interview Prep ── */}
             {tab === "questions" && (
-              <ul className="space-y-2">
-                {feedback.interview_questions.map((q, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span
-                      className="text-[10px] font-bold text-violet-500 flex-shrink-0 mt-0.5"
-                      style={{ minWidth: "1rem" }}
-                    >
-                      Q{i + 1}
-                    </span>
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                      {q}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              feedback.interview_questions.length > 0 ? (
+                <ul className="space-y-2">
+                  {feedback.interview_questions.map((q, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span
+                        className="text-[10px] font-bold text-violet-500 flex-shrink-0 mt-0.5"
+                        style={{ minWidth: "1.5rem" }}
+                      >
+                        Q{i + 1}
+                      </span>
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                        {q}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyTabState message="No interview questions generated — try Analyze again" />
+              )
             )}
 
+            {/* ── ATS Tips ── */}
             {tab === "tips" && (
-              <ul className="space-y-2">
-                {feedback.ats_tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <ChevronRight className="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                      {tip}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              feedback.ats_tips.length > 0 ? (
+                <ul className="space-y-2">
+                  {feedback.ats_tips.map((tip, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <ChevronRight className="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                        {tip}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyTabState message="No ATS tips generated — try Analyze again" />
+              )
             )}
           </motion.div>
         )}

@@ -79,6 +79,7 @@ export interface AIFeedback {
   missing_skills: string[];
   ats_optimization_tips: string[];
   overall_assessment: string;
+  interview_questions: string[];
 }
 
 export interface JobMatchFeedback {

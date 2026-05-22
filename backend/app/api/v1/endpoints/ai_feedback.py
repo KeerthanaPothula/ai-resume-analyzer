@@ -1,6 +1,10 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 from app.db.database import get_db
 from app.models.user import User
@@ -12,7 +16,7 @@ from app.schemas.ai_feedback import (
     JobMatchFeedbackResponse,
 )
 from app.core.security import get_current_active_user
-from app.services.ai.llm_service import get_llm_service
+from app.services.ai.llm_service import LLMService, get_llm_service
 
 router = APIRouter()
 
@@ -58,18 +62,26 @@ async def generate_resume_feedback(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     svc = get_llm_service()
-    feedback = await svc.generate_resume_feedback(
-        raw_text=resume.raw_text or "",
-        skills=resume.extracted_skills or [],
-        experience_years=resume.experience_years or 0.0,
-        education_level=resume.education_level or "Not Specified",
-        weaknesses=resume.weaknesses or [],
-    )
+    try:
+        feedback = await svc.generate_resume_feedback(
+            raw_text=resume.raw_text or "",
+            skills=resume.extracted_skills or [],
+            experience_years=resume.experience_years or 0.0,
+            education_level=resume.education_level or "Not Specified",
+            weaknesses=resume.weaknesses or [],
+        )
+        provider = svc.provider if svc.is_available else "template"
+    except Exception:
+        logger.exception("Unhandled error in generate_resume_feedback; using template")
+        feedback = LLMService._template_resume_feedback(
+            resume.extracted_skills or [],
+            resume.experience_years or 0.0,
+            resume.education_level or "Not Specified",
+            resume.weaknesses or [],
+        )
+        provider = "template"
 
-    return ResumeFeedbackResponse(
-        provider=svc.provider if svc.is_available else "template",
-        **feedback.dict(),
-    )
+    return ResumeFeedbackResponse(provider=provider, **feedback.dict())
 
 
 @router.post("/resume/{resume_id}/job/{job_id}", response_model=JobMatchFeedbackResponse)
@@ -99,15 +111,22 @@ async def generate_job_match_feedback(
     )
 
     svc = get_llm_service()
-    feedback = await svc.generate_job_match_feedback(
-        raw_text=resume.raw_text or "",
-        job_title=job.title,
-        job_description=job.description,
-        matched_skills=ats.matched_skills if ats else [],
-        missing_skills=ats.missing_skills if ats else [],
-    )
+    try:
+        feedback = await svc.generate_job_match_feedback(
+            raw_text=resume.raw_text or "",
+            job_title=job.title,
+            job_description=job.description,
+            matched_skills=ats.matched_skills if ats else [],
+            missing_skills=ats.missing_skills if ats else [],
+        )
+        provider = svc.provider if svc.is_available else "template"
+    except Exception:
+        logger.exception("Unhandled error in generate_job_match_feedback; using template")
+        feedback = LLMService._template_job_match(
+            job.title,
+            ats.matched_skills if ats else [],
+            ats.missing_skills if ats else [],
+        )
+        provider = "template"
 
-    return JobMatchFeedbackResponse(
-        provider=svc.provider if svc.is_available else "template",
-        **feedback.dict(),
-    )
+    return JobMatchFeedbackResponse(provider=provider, **feedback.dict())
