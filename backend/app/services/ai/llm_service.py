@@ -1,16 +1,22 @@
 """
-LLM service with OpenAI, Google Gemini, and template-based fallback.
+LLM service — Google Gemini (google-genai SDK v2) + OpenAI + template fallback.
 
-Configure via environment variables:
-  LLM_PROVIDER=openai   OPENAI_API_KEY=sk-...   OPENAI_MODEL=gpt-4o-mini
-  LLM_PROVIDER=gemini   GEMINI_API_KEY=...       GEMINI_MODEL=gemini-1.5-flash
-  LLM_PROVIDER=none     (uses deterministic templates — no API call)
+Configure via backend/.env:
+  LLM_PROVIDER=gemini
+  GEMINI_API_KEY=<your key from https://aistudio.google.com/app/apikey>
+  GEMINI_MODEL=gemini-2.0-flash          # optional, this is the default
+
+  LLM_PROVIDER=openai
+  OPENAI_API_KEY=sk-...
+  OPENAI_MODEL=gpt-4o-mini               # optional, this is the default
+
+  LLM_PROVIDER=none                      # deterministic templates, no API cost
 """
 
 import json
 import logging
 from dataclasses import dataclass, asdict
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 
@@ -55,13 +61,13 @@ Experience: {experience} years
 Education: {education}
 Known Weaknesses: {weaknesses}
 
-Respond with ONLY this JSON object (no markdown, no extra text):
+Return ONLY a JSON object with exactly these keys:
 {{
   "summary": "2-3 sentence professional summary of this candidate",
   "improvement_suggestions": ["suggestion 1", "suggestion 2", "suggestion 3", "suggestion 4", "suggestion 5"],
   "missing_skills": ["skill1", "skill2", "skill3"],
   "ats_optimization_tips": ["tip 1", "tip 2", "tip 3", "tip 4"],
-  "overall_assessment": "1-2 sentence assessment explaining the score"
+  "overall_assessment": "1-2 sentence assessment explaining the ATS score"
 }}"""
 
 _JOB_MATCH_PROMPT = """Analyze how well this resume matches the job description.
@@ -76,7 +82,7 @@ Job Description (truncated):
 Already Matched Skills: {matched}
 Missing Skills: {missing}
 
-Respond with ONLY this JSON object (no markdown, no extra text):
+Return ONLY a JSON object with exactly these keys:
 {{
   "match_analysis": "2-3 sentence analysis of fit quality",
   "missing_skills": ["critical_skill1", "critical_skill2", "critical_skill3"],
@@ -85,33 +91,49 @@ Respond with ONLY this JSON object (no markdown, no extra text):
   "recommendation": "Strong match - apply now"
 }}
 
-For recommendation, choose exactly one of:
-  "Strong match - apply now" | "Good match - minor gaps" | "Moderate match - upskill first" | "Weak match - significant preparation needed"
+For recommendation pick exactly one of:
+  "Strong match - apply now" | "Good match - minor gaps" |
+  "Moderate match - upskill first" | "Weak match - significant preparation needed"
 """
+
+_PING_PROMPT = '{"test": true}'
 
 
 # ── LLM Service ───────────────────────────────────────────────────────────────
 
 class LLMService:
-    """Unified interface for OpenAI, Gemini, and template fallback."""
+    """
+    Unified interface for Gemini (google-genai v2), OpenAI, and template fallback.
+    Clients are lazy-loaded on first use — startup is never blocked.
+    """
 
     def __init__(self) -> None:
-        self._openai_client = None
-        self._gemini_model = None
+        self._gemini_client = None   # google.genai.Client
+        self._openai_client = None   # openai.AsyncOpenAI
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ── Public properties ─────────────────────────────────────────────────────
 
     @property
     def provider(self) -> str:
         return settings.LLM_PROVIDER.lower()
 
     @property
-    def is_available(self) -> bool:
+    def model_name(self) -> str:
+        if self.provider == "gemini":
+            return settings.GEMINI_MODEL
         if self.provider == "openai":
-            return bool(settings.OPENAI_API_KEY)
+            return settings.OPENAI_MODEL
+        return "none"
+
+    @property
+    def is_available(self) -> bool:
         if self.provider == "gemini":
             return bool(settings.GEMINI_API_KEY)
+        if self.provider == "openai":
+            return bool(settings.OPENAI_API_KEY)
         return False
+
+    # ── High-level feedback methods ───────────────────────────────────────────
 
     async def generate_resume_feedback(
         self,
@@ -175,19 +197,116 @@ class LLMService:
             recommendation=str(data.get("recommendation", "")),
         )
 
+    async def ping(self) -> Dict[str, Any]:
+        """Smoke-test the configured provider with a minimal API call."""
+        if not self.is_available:
+            return {
+                "ok": False,
+                "provider": self.provider,
+                "model": None,
+                "error": (
+                    f"No API key configured for provider '{self.provider}'. "
+                    f"Open backend/.env and set "
+                    f"{'GEMINI_API_KEY' if self.provider == 'gemini' else 'OPENAI_API_KEY'}."
+                ),
+            }
+
+        prompt = (
+            'Return exactly this JSON and nothing else: '
+            '{"ok": true, "message": "connection successful"}'
+        )
+        result = await self._call_llm(prompt)
+        return {
+            "ok": result is not None,
+            "provider": self.provider,
+            "model": self.model_name,
+            "response": result,
+        }
+
     # ── LLM call dispatch ─────────────────────────────────────────────────────
 
     async def _call_llm(self, prompt: str) -> Optional[Dict[str, Any]]:
-        if self.provider == "openai" and settings.OPENAI_API_KEY:
-            return await self._call_openai(prompt)
         if self.provider == "gemini" and settings.GEMINI_API_KEY:
             return await self._call_gemini(prompt)
+        if self.provider == "openai" and settings.OPENAI_API_KEY:
+            return await self._call_openai(prompt)
         return None
+
+    # ── Gemini (google-genai v2 SDK) ──────────────────────────────────────────
+
+    async def _call_gemini(self, prompt: str) -> Optional[Dict[str, Any]]:
+        try:
+            from google import genai                           # google-genai package
+            from google.genai import types as genai_types
+            from google.genai import errors as genai_errors
+
+            if self._gemini_client is None:
+                self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+            response = await self._gemini_client.aio.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3,
+                    max_output_tokens=1500,
+                ),
+            )
+
+            raw = (response.text or "{}").strip()
+
+            # Belt-and-suspenders: strip any accidental markdown fences
+            if raw.startswith("```"):
+                parts = raw.split("```")
+                raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else "{}"
+
+            return json.loads(raw)
+
+        except Exception as exc:
+            self._handle_gemini_error(exc)
+            return None
+
+    def _handle_gemini_error(self, exc: Exception) -> None:
+        """Log a Gemini error with a human-readable hint."""
+        msg = str(exc)
+        try:
+            from google.genai import errors as genai_errors
+
+            if isinstance(exc, genai_errors.ClientError):
+                code = getattr(exc, "status_code", 0) or 0
+                if code == 401 or "API_KEY" in msg.upper() or "invalid" in msg.lower():
+                    logger.error(
+                        "Gemini: invalid API key (401). "
+                        "Open backend/.env and paste a valid key at GEMINI_API_KEY=<key>"
+                    )
+                elif code == 429 or "quota" in msg.lower() or "RATE_LIMIT" in msg.upper():
+                    logger.error(
+                        "Gemini: rate limit / free-tier quota exceeded (429). "
+                        "Wait a moment or upgrade your Google AI Studio plan."
+                    )
+                elif code == 400:
+                    logger.error("Gemini: bad request (400) — check prompt length/content: %s", msg)
+                else:
+                    logger.error("Gemini client error (%s): %s", code, msg)
+
+            elif isinstance(exc, genai_errors.ServerError):
+                # Transient — reset so the next call re-creates the client
+                self._gemini_client = None
+                logger.error("Gemini server error (5xx) — will auto-retry next call: %s", msg)
+
+            else:
+                logger.error("Gemini unexpected error (%s): %s", type(exc).__name__, msg)
+
+        except ImportError:
+            logger.error("Gemini call failed: %s", msg)
+
+    # ── OpenAI ────────────────────────────────────────────────────────────────
 
     async def _call_openai(self, prompt: str) -> Optional[Dict[str, Any]]:
         try:
+            from openai import AsyncOpenAI  # lazy import
+
             if self._openai_client is None:
-                from openai import AsyncOpenAI  # lazy import
                 self._openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
             response = await self._openai_client.chat.completions.create(
@@ -205,32 +324,12 @@ class LLMService:
             )
             content = response.choices[0].message.content or "{}"
             return json.loads(content)
+
         except Exception as exc:
-            logger.error("OpenAI call failed: %s", exc)
+            logger.error("OpenAI call failed (%s): %s", type(exc).__name__, exc)
             return None
 
-    async def _call_gemini(self, prompt: str) -> Optional[Dict[str, Any]]:
-        try:
-            if self._gemini_model is None:
-                import google.generativeai as genai  # lazy import
-                genai.configure(api_key=settings.GEMINI_API_KEY)
-                self._gemini_model = genai.GenerativeModel(settings.GEMINI_MODEL)
-
-            full_prompt = "Respond with valid JSON only — no markdown fences, no explanation.\n\n" + prompt
-            response = await self._gemini_model.generate_content_async(full_prompt)
-            raw = (response.text or "{}").strip()
-
-            # Strip ```json ... ``` fences if present
-            if raw.startswith("```"):
-                parts = raw.split("```")
-                raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else "{}"
-
-            return json.loads(raw)
-        except Exception as exc:
-            logger.error("Gemini call failed: %s", exc)
-            return None
-
-    # ── Template fallbacks (offline, deterministic) ───────────────────────────
+    # ── Template fallbacks (deterministic, no API cost) ───────────────────────
 
     @staticmethod
     def _template_resume_feedback(
@@ -240,7 +339,11 @@ class LLMService:
         weaknesses: List[str],
     ) -> ResumeFeedback:
         skill_str = ", ".join(skills[:5]) if skills else "various technologies"
-        edu_note = f"Holds a {education_level} degree. " if education_level not in ("Not Specified", "") else ""
+        edu_note = (
+            f"Holds a {education_level} degree. "
+            if education_level not in ("Not Specified", "")
+            else ""
+        )
 
         return ResumeFeedback(
             summary=(
@@ -297,7 +400,11 @@ class LLMService:
             ats_tips=[
                 f"Add the exact phrase '{job_title}' to your resume headline or summary section",
                 "Mirror specific keywords from the job description verbatim — ATS does exact matching",
-                f"Highlight: {', '.join(matched_skills[:3])} — these already align with the role" if matched_skills else "Expand your skills section with technologies mentioned in the job description",
+                (
+                    f"Highlight: {', '.join(matched_skills[:3])} — these already align with the role"
+                    if matched_skills
+                    else "Expand your skills section with technologies mentioned in the job description"
+                ),
             ],
             recommendation=(
                 "Strong match - apply now" if pct >= 80 else

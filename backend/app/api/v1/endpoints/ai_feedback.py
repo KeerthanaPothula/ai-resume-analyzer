@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import Any, Dict
 
 from app.db.database import get_db
 from app.models.user import User
@@ -18,12 +19,25 @@ router = APIRouter()
 
 @router.get("/status", response_model=LLMStatusResponse)
 def llm_status():
-    """Return whether an LLM provider is configured."""
+    """Return the configured LLM provider and whether it has a valid API key."""
     svc = get_llm_service()
     return LLMStatusResponse(
         available=svc.is_available,
         provider=svc.provider if svc.is_available else "none",
     )
+
+
+@router.get("/test")
+async def test_llm_connection(
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """
+    Smoke-test the configured LLM provider with a minimal API call.
+    Returns {ok, provider, model, response} on success or {ok, error} on failure.
+    Requires authentication — call from Swagger /docs or the frontend after login.
+    """
+    svc = get_llm_service()
+    return await svc.ping()
 
 
 @router.post("/resume/{resume_id}", response_model=ResumeFeedbackResponse)
