@@ -1,3 +1,4 @@
+import re
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from sklearn.metrics.pairwise import cosine_similarity
@@ -141,6 +142,153 @@ def generate_interview_questions(
         questions.append(f"We use {skill} extensively. What's your familiarity with it, and how quickly could you get up to speed?")
 
     return questions[:10]
+
+
+def extract_resume_summary(text: str) -> str:
+    """Pull a professional summary from resume text."""
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+    # Look for an explicit summary/profile/objective section
+    section_kws = {"summary", "profile", "objective", "about", "overview", "introduction"}
+    for i, line in enumerate(lines):
+        if line.lower().rstrip(":") in section_kws or any(
+            line.lower().startswith(kw) for kw in section_kws
+        ):
+            chunk = []
+            for j in range(i + 1, min(i + 8, len(lines))):
+                seg = lines[j]
+                # Stop at next section header (short all-caps or title-case single line)
+                if len(seg) < 50 and (seg.isupper() or seg.istitle()):
+                    break
+                if len(seg) > 20:
+                    chunk.append(seg)
+                if len(chunk) >= 3:
+                    break
+            if chunk:
+                summary = " ".join(chunk)
+                return summary[:400] + ("…" if len(summary) > 400 else "")
+
+    # Fallback: first long line that looks like prose (not contact info)
+    skip_kws = {"@", "linkedin", "github", "phone", "tel:", "http", "www"}
+    for line in lines:
+        if len(line) > 100 and not any(kw in line.lower() for kw in skip_kws):
+            return line[:400] + ("…" if len(line) > 400 else "")
+
+    return ""
+
+
+_EDU_SCORES = {
+    "PhD": 100.0,
+    "Master's": 85.0,
+    "Bachelor's": 70.0,
+    "Associate/Diploma": 50.0,
+    "High School": 30.0,
+    "Not Specified": 45.0,
+}
+
+
+def calculate_general_ats_score(
+    skills: List[str],
+    experience_years: float,
+    education_level: str,
+    candidate_name: Optional[str],
+    candidate_email: Optional[str],
+    candidate_phone: Optional[str],
+    candidate_location: Optional[str],
+    raw_text: str,
+) -> Dict:
+    """
+    Score a resume on its own merits (no job description).
+    Returns overall score + per-dimension scores + strengths + weaknesses.
+    """
+    text_lower = raw_text.lower()
+
+    # ── 1. Skills breadth (35%) ─────────────────────────────────────────────
+    # Full score at 18+ detected skills; proportional below
+    skill_score = round(min(100.0, len(skills) / 18.0 * 100), 1)
+
+    # ── 2. Experience (25%) ─────────────────────────────────────────────────
+    # Full score at 8+ years
+    exp_score = round(min(100.0, experience_years / 8.0 * 100), 1)
+
+    # ── 3. Education (15%) ──────────────────────────────────────────────────
+    edu_score = _EDU_SCORES.get(education_level, 45.0)
+
+    # ── 4. Completeness (25%) ───────────────────────────────────────────────
+    completeness = 0.0
+    completeness += 25.0 if candidate_name else 0.0
+    completeness += 25.0 if candidate_email else 0.0
+    completeness += 15.0 if candidate_phone else 0.0
+    completeness += 10.0 if candidate_location else 0.0
+    # Common resume sections
+    has_exp_section = any(kw in text_lower for kw in ("experience", "employment", "work history"))
+    has_edu_section = any(kw in text_lower for kw in ("education", "university", "degree", "college"))
+    completeness += 15.0 if has_exp_section else 0.0
+    completeness += 10.0 if has_edu_section else 0.0
+    completeness = round(min(100.0, completeness), 1)
+
+    # ── Overall ─────────────────────────────────────────────────────────────
+    overall = round(
+        skill_score * 0.35
+        + exp_score * 0.25
+        + edu_score * 0.15
+        + completeness * 0.25,
+        1,
+    )
+    overall = min(100.0, overall)
+
+    # ── Strengths ───────────────────────────────────────────────────────────
+    strengths: List[str] = []
+    if len(skills) >= 12:
+        strengths.append(f"Strong technical breadth — {len(skills)} skills detected")
+    elif len(skills) >= 6:
+        strengths.append(f"{len(skills)} technical skills identified")
+    if experience_years >= 5:
+        strengths.append(f"{experience_years:.0f}+ years of professional experience")
+    elif experience_years >= 2:
+        strengths.append(f"{experience_years:.0f} years of experience")
+    if education_level in ("Master's", "PhD"):
+        strengths.append(f"{education_level} degree — strong academic foundation")
+    if candidate_email and candidate_phone:
+        strengths.append("Complete contact information provided")
+    if has_exp_section and has_edu_section:
+        strengths.append("Resume includes all standard sections")
+    if skills:
+        top = ", ".join(skills[:4])
+        strengths.append(f"Key skills: {top}")
+
+    # ── Weaknesses ──────────────────────────────────────────────────────────
+    weaknesses: List[str] = []
+    if not candidate_name:
+        weaknesses.append("Candidate name not detected — place your full name at the top")
+    if not candidate_email:
+        weaknesses.append("No email address found — add contact email")
+    if not candidate_phone:
+        weaknesses.append("No phone number found — add a contact number")
+    if len(skills) < 5:
+        weaknesses.append(
+            "Few technical skills detected — list specific tools, languages, and frameworks"
+        )
+    if experience_years < 1 and "experience" not in text_lower:
+        weaknesses.append("Work experience not detected — add employment history with dates")
+    if education_level == "Not Specified":
+        weaknesses.append("Education not detected — add your degree and institution")
+    if len(raw_text) < 400:
+        weaknesses.append("Resume content is brief — expand with achievements and responsibilities")
+    # Suggest summary if not detected
+    summary_kws = ("summary", "profile", "objective", "about")
+    if not any(kw in text_lower for kw in summary_kws):
+        weaknesses.append("Add a 2–3 sentence professional summary at the top of your resume")
+
+    return {
+        "overall": overall,
+        "skill_score": skill_score,
+        "exp_score": exp_score,
+        "edu_score": edu_score,
+        "completeness": completeness,
+        "strengths": strengths,
+        "weaknesses": weaknesses,
+    }
 
 
 def generate_ai_feedback(
