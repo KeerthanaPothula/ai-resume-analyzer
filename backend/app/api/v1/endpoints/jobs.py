@@ -1,0 +1,85 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+
+from app.db.database import get_db
+from app.models.user import User
+from app.models.job import JobDescription
+from app.schemas.resume import JobDescriptionCreate, JobDescriptionResponse
+from app.core.security import get_current_active_user
+from app.services.ai.skill_extractor import extract_skills_from_text
+from app.services.ai.scoring_engine import generate_embedding
+
+router = APIRouter()
+
+
+@router.post("/", response_model=JobDescriptionResponse, status_code=status.HTTP_201_CREATED)
+def create_job(
+    job_data: JobDescriptionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    if current_user.role not in ["recruiter", "admin"]:
+        raise HTTPException(status_code=403, detail="Only recruiters can post jobs")
+
+    # Extract skills from description if not provided
+    required_skills = job_data.required_skills
+    if not required_skills:
+        required_skills = extract_skills_from_text(job_data.description)
+
+    # Generate embedding
+    embedding = generate_embedding(job_data.description)
+
+    job = JobDescription(
+        recruiter_id=current_user.id,
+        title=job_data.title,
+        company=job_data.company,
+        location=job_data.location,
+        description=job_data.description,
+        required_skills=required_skills,
+        preferred_skills=job_data.preferred_skills or [],
+        experience_required=job_data.experience_required or 0.0,
+        education_required=job_data.education_required,
+        embedding=embedding,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+@router.get("/", response_model=List[JobDescriptionResponse])
+def list_jobs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    if current_user.role == "recruiter":
+        return db.query(JobDescription).filter(JobDescription.recruiter_id == current_user.id).all()
+    return db.query(JobDescription).all()
+
+
+@router.get("/{job_id}", response_model=JobDescriptionResponse)
+def get_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.recruiter_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    db.delete(job)
+    db.commit()
