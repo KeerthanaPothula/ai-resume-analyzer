@@ -1,9 +1,11 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.db.database import get_db
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.resume import Resume
 from app.models.job import JobDescription
 from app.core.security import get_current_active_user, require_role
@@ -75,10 +77,10 @@ def recruiter_summary(
     )
 
     total_candidates = db.query(func.count(Resume.id)).scalar() or 0
+    now = datetime.now(timezone.utc)
     this_month_jobs = [
         j for j in jobs
-        if j.created_at.month == __import__("datetime").datetime.now().month
-        and j.created_at.year == __import__("datetime").datetime.now().year
+        if j.created_at.month == now.month and j.created_at.year == now.year
     ]
 
     return {
