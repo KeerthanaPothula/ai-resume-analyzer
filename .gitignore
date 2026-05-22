@@ -52,6 +52,10 @@ frontend/build/
 !.env.example
 !**/.env.example
 
+# ── Stray artifacts ───────────────────────────────────────────────────────────
+backend/package-lock.json
+backend/package.json
+
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 logs/
