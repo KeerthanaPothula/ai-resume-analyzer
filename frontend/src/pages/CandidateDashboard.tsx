@@ -1,199 +1,480 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Upload, FileText, TrendingUp, Star, Plus, Trash2, Eye } from 'lucide-react';
-import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-import toast from 'react-hot-toast';
-import Layout from '../components/layout/Layout';
-import StatsCard from '../components/ui/StatsCard';
-import SkillBadge from '../components/ui/SkillBadge';
-import ScoreRing from '../components/ui/ScoreRing';
-import { resumeApi } from '../lib/api';
-import { Resume } from '../types';
-import { useAuth } from '../hooks/useAuth';
+import { useNavigate, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import {
+  FileText, Upload, TrendingUp, Award, Lightbulb, Star,
+  ChevronRight, Trash2, Eye, Plus, Clock, Target,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
+import Layout from "../components/layout/Layout";
+import StatsCard from "../components/ui/StatsCard";
+import SkillBadge from "../components/ui/SkillBadge";
+import ScoreRing from "../components/ui/ScoreRing";
+import EmptyState from "../components/ui/EmptyState";
+import { SkeletonStatsRow, SkeletonCard, SkeletonTable } from "../components/ui/Skeleton";
+import ErrorBoundary from "../components/error/ErrorBoundary";
+import { dashboardApi, resumeApi } from "../lib/api";
+import { useAuth } from "../hooks/useAuth";
+import { useThemeStore } from "../stores/themeStore";
+
+interface ResumeRow {
+  id: number;
+  original_name: string;
+  ats_score: number;
+  extracted_skills: string[];
+  candidate_name: string | null;
+  experience_years: number;
+  education_level: string | null;
+  created_at: string;
+  ai_feedback: string | null;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+interface DashboardData {
+  total_resumes: number;
+  avg_ats_score: number;
+  best_ats_score: number;
+  total_skills: number;
+  top_skills: string[];
+  latest_resume_date: string | null;
+  suggestions: string[];
+  resumes: ResumeRow[];
+}
+
+function ScoreGauge({ score }: { score: number }) {
+  const color =
+    score >= 75 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
+  const label =
+    score >= 75 ? "Excellent" : score >= 50 ? "Good" : "Needs Work";
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <ScoreRing score={score} size={110} />
+      <span className="text-xs font-medium mt-1" style={{ color }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function ResumeCard({
+  resume,
+  onDelete,
+}: {
+  resume: ResumeRow;
+  onDelete: (id: number) => void;
+}) {
+  const { theme } = useThemeStore();
+  const isDark = theme === "dark";
+  const scoreColor =
+    resume.ats_score >= 75
+      ? "text-emerald-500"
+      : resume.ats_score >= 50
+      ? "text-amber-500"
+      : "text-red-400";
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className={`card p-4 hover:shadow-md transition-all duration-200 ${
+        isDark ? "hover:border-sky-500/30" : "hover:border-sky-300"
+      }`}
+    >
+      <div className="flex items-start gap-4">
+        {/* Icon */}
+        <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-5 h-5 text-sky-500" />
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p
+                className="font-medium text-sm truncate"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {resume.original_name}
+              </p>
+              <p
+                className="text-xs mt-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {resume.candidate_name && `${resume.candidate_name} · `}
+                {resume.experience_years > 0 &&
+                  `${resume.experience_years.toFixed(0)} yrs · `}
+                {new Date(resume.created_at).toLocaleDateString()}
+              </p>
+            </div>
+            {/* ATS score badge */}
+            <span
+              className={`text-lg font-bold flex-shrink-0 ${scoreColor}`}
+            >
+              {resume.ats_score.toFixed(0)}
+              <span className="text-xs font-normal ml-0.5">%</span>
+            </span>
+          </div>
+
+          {/* Skills */}
+          <div className="flex flex-wrap gap-1 mt-2">
+            {resume.extracted_skills.slice(0, 5).map((s) => (
+              <SkillBadge key={s} skill={s} />
+            ))}
+            {resume.extracted_skills.length > 5 && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{
+                  color: "var(--text-muted)",
+                  backgroundColor: "var(--border-color)",
+                }}
+              >
+                +{resume.extracted_skills.length - 5}
+              </span>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 mt-3">
+            <Link
+              to={`/analysis/${resume.id}`}
+              className="btn-ghost text-xs px-2 py-1 gap-1.5"
+            >
+              <Eye className="w-3.5 h-3.5" /> View Analysis
+            </Link>
+            <button
+              onClick={() => onDelete(resume.id)}
+              className="btn-ghost text-xs px-2 py-1 gap-1.5 text-red-400 hover:bg-red-500/10"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function CandidateDashboard() {
-  const [resumes, setResumes] = useState<Resume[]>([]);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { theme } = useThemeStore();
+  const isDark = theme === "dark";
 
-  useEffect(() => {
-    resumeApi.list().then((r) => setResumes(r.data)).catch(() => toast.error('Failed to load resumes')).finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading, error, refetch } = useQuery<DashboardData>({
+    queryKey: ["dashboard", "candidate"],
+    queryFn: () => dashboardApi.candidate().then((r) => r.data),
+  });
 
   const handleDelete = async (id: number) => {
     try {
       await resumeApi.delete(id);
-      setResumes((prev) => prev.filter((r) => r.id !== id));
-      toast.success('Resume deleted');
+      toast.success("Resume deleted");
+      refetch();
     } catch {
-      toast.error('Failed to delete');
+      toast.error("Failed to delete resume");
     }
   };
 
-  const avgScore = resumes.length ? resumes.reduce((a, r) => a + (r.ats_score || 0), 0) / resumes.length : 0;
-  const allSkills = [...new Set(resumes.flatMap((r) => r.extracted_skills || []))];
+  const radarData = data
+    ? [
+        {
+          subject: "Skills",
+          A: Math.min(100, data.total_skills * 8),
+        },
+        {
+          subject: "ATS Score",
+          A: data.avg_ats_score,
+        },
+        {
+          subject: "Resumes",
+          A: Math.min(100, data.total_resumes * 20),
+        },
+        {
+          subject: "Best Score",
+          A: data.best_ats_score,
+        },
+      ]
+    : [];
 
-  const skillChartData = allSkills.slice(0, 6).map((skill) => ({
-    skill: skill.slice(0, 10),
-    count: resumes.filter((r) => r.extracted_skills?.includes(skill)).length,
-  }));
-
-  const radarData = [
-    { subject: 'Skills', A: Math.min(100, allSkills.length * 5) },
-    { subject: 'Experience', A: Math.min(100, (resumes[0]?.experience_years || 0) * 10) },
-    { subject: 'ATS Score', A: avgScore },
-    { subject: 'Education', A: resumes[0]?.education_level === "Master's" ? 90 : resumes[0]?.education_level === "Bachelor's" ? 70 : 50 },
-    { subject: 'Profile', A: resumes.length > 0 ? 80 : 20 },
-  ];
+  if (error) {
+    return (
+      <Layout title="Dashboard">
+        <div className="p-6 max-w-7xl mx-auto">
+          <ErrorBoundary>
+            <EmptyState
+              icon={FileText}
+              title="Failed to load dashboard"
+              description="Could not connect to the server. Make sure the backend is running."
+              action={{ label: "Retry", onClick: () => refetch() }}
+            />
+          </ErrorBoundary>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
-    <Layout>
-      <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <Layout title="Candidate Dashboard">
+      <div className="p-5 md:p-7 max-w-7xl mx-auto space-y-6 animate-fade-in">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Welcome back, {user?.full_name?.split(' ')[0]} 👋</h1>
-            <p className="text-slate-400 mt-1">Track your resume performance and AI insights</p>
+            <h2
+              className="text-2xl font-bold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Welcome back, {user?.full_name?.split(" ")[0]} 👋
+            </h2>
+            <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
+              Here&apos;s your resume performance at a glance
+            </p>
           </div>
-          <Link to="/upload" className="btn-primary">
+          <Link to="/upload" className="btn-primary text-sm self-start sm:self-auto">
             <Plus className="w-4 h-4" /> Upload Resume
           </Link>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatsCard title="Total Resumes" value={resumes.length} icon={FileText} color="sky" delay={0} />
-          <StatsCard title="Avg ATS Score" value={`${avgScore.toFixed(0)}%`} icon={TrendingUp} color="violet" delay={0.1} />
-          <StatsCard title="Total Skills" value={allSkills.length} icon={Star} color="emerald" delay={0.2} />
-          <StatsCard title="Experience" value={`${resumes[0]?.experience_years?.toFixed(0) || 0} yrs`} icon={Upload} color="amber" delay={0.3} />
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6 mb-8">
-          {/* Radar Chart */}
-          <div className="card p-6">
-            <h3 className="text-white font-semibold mb-4">Profile Overview</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#334155" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <Radar name="Profile" dataKey="A" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.2} strokeWidth={2} />
-              </RadarChart>
-            </ResponsiveContainer>
+        {/* ── Stats row ── */}
+        {isLoading ? (
+          <SkeletonStatsRow />
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatsCard
+              title="Total Resumes"
+              value={data!.total_resumes}
+              icon={FileText}
+              color="sky"
+              delay={0}
+            />
+            <StatsCard
+              title="Avg ATS Score"
+              value={`${data!.avg_ats_score}%`}
+              icon={TrendingUp}
+              color="violet"
+              delay={0.05}
+            />
+            <StatsCard
+              title="Best Score"
+              value={`${data!.best_ats_score}%`}
+              icon={Award}
+              color="emerald"
+              delay={0.1}
+            />
+            <StatsCard
+              title="Skills Detected"
+              value={data!.total_skills}
+              icon={Star}
+              color="amber"
+              delay={0.15}
+            />
           </div>
+        )}
 
-          {/* Skill Chart */}
-          <div className="card p-6">
-            <h3 className="text-white font-semibold mb-4">Top Skills</h3>
-            {skillChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={skillChartData} layout="vertical">
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="skill" type="category" width={80} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                    labelStyle={{ color: '#f1f5f9' }}
-                  />
-                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                    {skillChartData.map((_, i) => (
-                      <Cell key={i} fill={i % 2 === 0 ? '#0ea5e9' : '#8b5cf6'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        {/* ── Main grid ── */}
+        <div className="grid lg:grid-cols-3 gap-6">
+
+          {/* LEFT — resume list (2/3) */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3
+                className="font-semibold text-base"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Resume History
+              </h3>
+              <Link
+                to="/upload"
+                className="flex items-center gap-1 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add new
+              </Link>
+            </div>
+
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <SkeletonCard key={i} lines={2} />
+                ))}
+              </div>
+            ) : data!.resumes.length === 0 ? (
+              <div className="card">
+                <EmptyState
+                  icon={Upload}
+                  title="No resumes yet"
+                  description="Upload your first resume and our AI will parse it, extract skills, and calculate your ATS score."
+                  action={{ label: "Upload Resume", onClick: () => navigate("/upload") }}
+                />
+              </div>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-slate-500 text-sm">Upload a resume to see skills</div>
+              <div className="space-y-3">
+                {data!.resumes.map((r) => (
+                  <ResumeCard key={r.id} resume={r} onDelete={handleDelete} />
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Score rings */}
-          <div className="card p-6">
-            <h3 className="text-white font-semibold mb-4">ATS Score</h3>
-            <div className="flex items-center justify-center h-[220px]">
-              {resumes.length > 0 ? (
-                <ScoreRing score={avgScore} size={160} label="Average Score" />
+          {/* RIGHT — score + skills + suggestions (1/3) */}
+          <div className="space-y-4">
+
+            {/* ATS Score ring */}
+            <div className="card p-5">
+              <h3
+                className="font-semibold text-sm mb-4"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Average ATS Score
+              </h3>
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <div className="w-24 h-24 rounded-full skeleton" />
+                </div>
               ) : (
-                <div className="text-center text-slate-500 text-sm">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>No resumes yet</p>
+                <div className="flex justify-center">
+                  <ScoreGauge score={data!.avg_ats_score} />
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Resumes list */}
-        <div className="card">
-          <div className="p-6 border-b border-slate-700/50 flex items-center justify-between">
-            <h3 className="text-white font-semibold text-lg">My Resumes</h3>
-            <Link to="/upload" className="text-sky-400 hover:text-sky-300 text-sm flex items-center gap-1">
-              <Plus className="w-4 h-4" /> Add New
-            </Link>
-          </div>
-          {loading ? (
-            <div className="p-8 flex justify-center">
-              <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : resumes.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="w-14 h-14 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-400 font-medium">No resumes uploaded yet</p>
-              <p className="text-slate-500 text-sm mb-6">Upload your first resume to get started</p>
-              <Link to="/upload" className="btn-primary justify-center inline-flex">
-                <Upload className="w-4 h-4" /> Upload Resume
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-700/50">
-              {resumes.map((resume) => (
-                <motion.div
-                  key={resume.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="p-5 flex items-center gap-4 hover:bg-slate-800/30 transition-colors"
+            {/* Radar profile */}
+            {!isLoading && data!.total_resumes > 0 && (
+              <div className="card p-5">
+                <h3
+                  className="font-semibold text-sm mb-3"
+                  style={{ color: "var(--text-primary)" }}
                 >
-                  <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
-                    <FileText className="w-5 h-5 text-sky-400" />
+                  Profile Overview
+                </h3>
+                <ResponsiveContainer width="100%" height={180}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid
+                      stroke={isDark ? "#334155" : "#e2e8f0"}
+                    />
+                    <PolarAngleAxis
+                      dataKey="subject"
+                      tick={{
+                        fill: isDark ? "#94a3b8" : "#475569",
+                        fontSize: 11,
+                      }}
+                    />
+                    <Radar
+                      name="Profile"
+                      dataKey="A"
+                      stroke="#0ea5e9"
+                      fill="#0ea5e9"
+                      fillOpacity={0.2}
+                      strokeWidth={2}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Top skills */}
+            {!isLoading && data!.top_skills.length > 0 && (
+              <div className="card p-5">
+                <h3
+                  className="font-semibold text-sm mb-3"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  Skills Detected
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {data!.top_skills.map((skill) => (
+                    <SkillBadge key={skill} skill={skill} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* AI Suggestions */}
+            {!isLoading && data!.suggestions.length > 0 && (
+              <div className="card p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lightbulb className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <h3
+                    className="font-semibold text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    AI Suggestions
+                  </h3>
+                </div>
+                <ul className="space-y-2.5">
+                  {data!.suggestions.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-sky-500 mt-1.5 flex-shrink-0" />
+                      <p
+                        className="text-xs leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {s}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Quick actions */}
+            <div className="card p-5 space-y-2">
+              <h3
+                className="font-semibold text-sm mb-3"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Quick Actions
+              </h3>
+              {[
+                {
+                  label: "Upload new resume",
+                  icon: Upload,
+                  path: "/upload",
+                  desc: "Add another version",
+                },
+                {
+                  label: "View latest analysis",
+                  icon: Target,
+                  path:
+                    data && data.resumes.length > 0
+                      ? `/analysis/${data.resumes[0].id}`
+                      : "/upload",
+                  desc: "See AI insights",
+                },
+              ].map(({ label, icon: Icon, path, desc }) => (
+                <Link
+                  key={label}
+                  to={path}
+                  className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-150 group ${
+                    isDark ? "hover:bg-slate-800" : "hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                    <Icon className="w-4 h-4 text-sky-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{resume.original_name}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-slate-400 text-xs">{new Date(resume.created_at).toLocaleDateString()}</span>
-                      {resume.candidate_name && <span className="text-slate-400 text-xs">{resume.candidate_name}</span>}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {(resume.extracted_skills || []).slice(0, 4).map((skill) => (
-                        <SkillBadge key={skill} skill={skill} />
-                      ))}
-                      {(resume.extracted_skills?.length || 0) > 4 && (
-                        <span className="text-slate-500 text-xs">+{(resume.extracted_skills?.length || 0) - 4} more</span>
-                      )}
-                    </div>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {label}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {desc}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-white">{(resume.ats_score || 0).toFixed(0)}</p>
-                      <p className="text-slate-400 text-xs">ATS</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link
-                        to={`/analysis/${resume.id}`}
-                        className="p-2 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-400/10 transition-all"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(resume.id)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+                  <ChevronRight
+                    className="w-4 h-4 opacity-0 group-hover:opacity-60 transition-opacity"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                </Link>
               ))}
             </div>
-          )}
+
+          </div>
         </div>
       </div>
     </Layout>

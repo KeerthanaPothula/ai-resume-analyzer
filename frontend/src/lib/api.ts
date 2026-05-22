@@ -145,3 +145,19 @@ export const rankingApi = {
     api.post(`/rankings/rank/${jobId}`, resumeIds),
   getForJob: (jobId: number) => api.get(`/rankings/job/${jobId}`),
 };
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+export const dashboardApi = {
+  candidate: () => api.get("/dashboard/candidate"),
+  recruiter: () => api.get("/dashboard/recruiter"),
+};
+
+// ── Profile / Account ─────────────────────────────────────────────────────────
+export const profileApi = {
+  update: (data: { full_name?: string; email?: string }) =>
+    api.put(`/users/${api.defaults.baseURL}`, data),
+  updateMe: (userId: number, data: { full_name?: string; email?: string }) =>
+    api.put(`/users/${userId}`, data),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    api.post("/auth/change-password", data),
+};

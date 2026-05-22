@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1.endpoints import analysis, auth, jobs, rankings, resumes, users
+from app.api.v1.endpoints import analysis, auth, dashboard, jobs, rankings, resumes, users
 from app.core.config import settings
 from app.core.limiter import limiter
 
@@ -56,6 +56,7 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(auth.router,      prefix="/api/v1/auth",      tags=["Authentication"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
 app.include_router(users.router,     prefix="/api/v1/users",     tags=["Users"])
 app.include_router(resumes.router,   prefix="/api/v1/resumes",   tags=["Resumes"])
 app.include_router(jobs.router,      prefix="/api/v1/jobs",      tags=["Job Descriptions"])

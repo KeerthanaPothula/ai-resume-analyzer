@@ -2,75 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme CSS variables ──────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --bg-primary: #020617;
-    --bg-secondary: #0f172a;
-    --bg-card: #1e293b;
-    --border: #334155;
-    --text-primary: #f1f5f9;
+    /* Light mode surfaces */
+    --bg-base:        #f1f5f9;
+    --bg-surface:     #ffffff;
+    --bg-card:        #ffffff;
+    --bg-sidebar:     #ffffff;
+    --bg-topnav:      #ffffff;
+    --border-color:   #e2e8f0;
+    --text-primary:   #0f172a;
+    --text-secondary: #475569;
+    --text-muted:     #94a3b8;
+    --accent:         #0ea5e9;
+    --accent-hover:   #0284c7;
+    --scrollbar-track: #f1f5f9;
+    --scrollbar-thumb: #cbd5e1;
+  }
+
+  .dark {
+    /* Dark mode surfaces */
+    --bg-base:        #020617;
+    --bg-surface:     #0f172a;
+    --bg-card:        rgba(30, 41, 59, 0.5);
+    --bg-sidebar:     #0f172a;
+    --bg-topnav:      rgba(15, 23, 42, 0.9);
+    --border-color:   rgba(51, 65, 85, 0.5);
+    --text-primary:   #f1f5f9;
     --text-secondary: #94a3b8;
-    --accent: #0ea5e9;
+    --text-muted:     #64748b;
+    --accent:         #0ea5e9;
+    --accent-hover:   #38bdf8;
+    --scrollbar-track: #0f172a;
+    --scrollbar-thumb: #334155;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100 antialiased;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    @apply antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  * {
-    @apply border-slate-700;
-  }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-slate-900;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-slate-600 rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-500;
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 }
 
+/* ── Reusable component classes ───────────────────────────────────────────── */
 @layer components {
+  /* Card — uses CSS variables so it responds to theme */
   .card {
-    @apply bg-slate-800/50 border border-slate-700/50 rounded-xl backdrop-blur-sm;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    @apply rounded-xl backdrop-blur-sm;
+  }
+
+  /* Themed card for light mode with real white bg */
+  .card-solid {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    @apply rounded-xl shadow-sm;
   }
 
   .btn-primary {
-    @apply bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm;
   }
 
   .btn-secondary {
-    @apply bg-slate-700 hover:bg-slate-600 text-slate-100 px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2;
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700;
   }
 
   .btn-danger {
-    @apply bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg font-medium transition-all duration-200;
+    @apply bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2;
+  }
+
+  .btn-ghost {
+    color: var(--text-secondary);
+    @apply px-3 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800;
   }
 
   .input {
-    @apply bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all w-full;
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    @apply rounded-lg px-3 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all w-full text-sm;
   }
 
   .label {
-    @apply text-slate-300 text-sm font-medium mb-1 block;
+    color: var(--text-secondary);
+    @apply text-sm font-medium mb-1 block;
   }
 
   .badge {
     @apply px-2 py-0.5 rounded-full text-xs font-medium;
   }
 
-  .score-ring {
-    @apply relative flex items-center justify-center;
+  /* Skeleton pulse */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--border-color) 25%,
+      var(--bg-surface) 50%,
+      var(--border-color) 75%
+    );
+    background-size: 200% 100%;
+    @apply rounded animate-pulse;
   }
 }
 
+/* ── Utility classes ──────────────────────────────────────────────────────── */
 .gradient-text {
   background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
   -webkit-background-clip: text;
@@ -78,28 +125,33 @@
   background-clip: text;
 }
 
-.glow-blue {
-  box-shadow: 0 0 30px rgba(14, 165, 233, 0.15);
-}
-
-.glow-purple {
-  box-shadow: 0 0 30px rgba(139, 92, 246, 0.15);
-}
+.glow-blue  { box-shadow: 0 0 30px rgba(14, 165, 233, 0.15); }
+.glow-purple { box-shadow: 0 0 30px rgba(139, 92, 246, 0.15); }
 
 .animate-fade-in {
-  animation: fadeIn 0.5s ease-in-out;
+  animation: fadeIn 0.4s ease-out;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .progress-bar {
-  @apply h-2 rounded-full overflow-hidden bg-slate-700;
+  @apply h-1.5 rounded-full overflow-hidden;
+  background-color: var(--border-color);
 }
 
 .progress-bar-fill {
   @apply h-full rounded-full transition-all duration-700;
   background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
 }
+
+/* Sidebar nav active state */
+.nav-active {
+  @apply bg-sky-500/15 text-sky-500 dark:text-sky-400;
+  border-left: 2px solid #0ea5e9;
+}
+
+/* Score ring */
+.score-ring { @apply relative flex items-center justify-center; }
