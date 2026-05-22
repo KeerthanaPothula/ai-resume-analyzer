@@ -72,6 +72,29 @@ export interface ATSScore {
   created_at: string;
 }
 
+export interface AIFeedback {
+  provider: string;
+  summary: string;
+  improvement_suggestions: string[];
+  missing_skills: string[];
+  ats_optimization_tips: string[];
+  overall_assessment: string;
+}
+
+export interface JobMatchFeedback {
+  provider: string;
+  match_analysis: string;
+  missing_skills: string[];
+  interview_questions: string[];
+  ats_tips: string[];
+  recommendation: string;
+}
+
+export interface LLMStatus {
+  available: boolean;
+  provider: string;
+}
+
 export interface RankingEntry {
   rank: number;
   score: number;

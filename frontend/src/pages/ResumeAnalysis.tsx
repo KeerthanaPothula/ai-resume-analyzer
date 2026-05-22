@@ -17,6 +17,7 @@ import SkillBadge from "../components/ui/SkillBadge";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorBoundary from "../components/error/ErrorBoundary";
 import EmptyState from "../components/ui/EmptyState";
+import { AIResumeFeedbackPanel, AIJobMatchPanel } from "../components/AIFeedbackPanel";
 import { resumeApi, analysisApi } from "../lib/api";
 import { useThemeStore } from "../stores/themeStore";
 import { Resume, ATSScore } from "../types";
@@ -125,9 +126,15 @@ function FeedbackBlock({ text }: { text: string }) {
   );
 }
 
-function JobMatchCard({ score, index }: { score: ATSScore; index: number }) {
-  const { theme } = useThemeStore();
-  const isDark = theme === "dark";
+function JobMatchCard({
+  score,
+  index,
+  resumeId,
+}: {
+  score: ATSScore;
+  index: number;
+  resumeId: number;
+}) {
   const label = scoreLabel(score.overall_score);
 
   return (
@@ -185,6 +192,8 @@ function JobMatchCard({ score, index }: { score: ATSScore; index: number }) {
           </ul>
         </details>
       )}
+
+      <AIJobMatchPanel resumeId={resumeId} jobId={score.job_id} />
 
       <Link
         to={`/ranking/${score.job_id}`}
@@ -532,18 +541,21 @@ export default function ResumeAnalysis() {
           </ResponsiveContainer>
         </div>
 
-        {/* ── AI Feedback ── */}
+        {/* ── Template AI Feedback (from upload) ── */}
         {resume.ai_feedback && (
           <div className="card p-5">
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare className="w-4 h-4 text-sky-500" />
               <h3 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-                AI Feedback
+                Analysis Summary
               </h3>
             </div>
             <FeedbackBlock text={resume.ai_feedback} />
           </div>
         )}
+
+        {/* ── LLM-powered AI Feedback Panel ── */}
+        <AIResumeFeedbackPanel resumeId={id} />
 
         {/* ── Job Match Analysis ── */}
         {jobScores.length > 0 && (
@@ -561,7 +573,7 @@ export default function ResumeAnalysis() {
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               {jobScores.map((s, i) => (
-                <JobMatchCard key={s.id} score={s} index={i} />
+                <JobMatchCard key={s.id} score={s} index={i} resumeId={id} />
               ))}
             </div>
           </div>

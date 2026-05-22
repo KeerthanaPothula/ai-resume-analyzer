@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1.endpoints import analysis, auth, dashboard, jobs, rankings, resumes, users
+from app.api.v1.endpoints import ai_feedback, analysis, auth, dashboard, jobs, rankings, resumes, users
 from app.core.config import settings
 from app.core.limiter import limiter
 
@@ -61,7 +61,8 @@ app.include_router(users.router,     prefix="/api/v1/users",     tags=["Users"])
 app.include_router(resumes.router,   prefix="/api/v1/resumes",   tags=["Resumes"])
 app.include_router(jobs.router,      prefix="/api/v1/jobs",      tags=["Job Descriptions"])
 app.include_router(analysis.router,  prefix="/api/v1/analysis",  tags=["AI Analysis"])
-app.include_router(rankings.router,  prefix="/api/v1/rankings",  tags=["Rankings"])
+app.include_router(rankings.router,   prefix="/api/v1/rankings",    tags=["Rankings"])
+app.include_router(ai_feedback.router, prefix="/api/v1/ai-feedback", tags=["AI Feedback"])
 
 
 @app.get("/")

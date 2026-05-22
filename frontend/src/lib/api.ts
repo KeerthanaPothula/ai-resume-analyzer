@@ -152,6 +152,15 @@ export const dashboardApi = {
   recruiter: () => api.get("/dashboard/recruiter"),
 };
 
+// ── AI Feedback ───────────────────────────────────────────────────────────────
+export const aiFeedbackApi = {
+  status: () => api.get("/ai-feedback/status"),
+  resumeFeedback: (resumeId: number) =>
+    api.post(`/ai-feedback/resume/${resumeId}`),
+  jobMatchFeedback: (resumeId: number, jobId: number) =>
+    api.post(`/ai-feedback/resume/${resumeId}/job/${jobId}`),
+};
+
 // ── Profile / Account ─────────────────────────────────────────────────────────
 export const profileApi = {
   update: (data: { full_name?: string; email?: string }) =>
