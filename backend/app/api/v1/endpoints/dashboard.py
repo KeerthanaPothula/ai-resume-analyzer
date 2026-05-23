@@ -30,11 +30,11 @@ def candidate_summary(
     if total == 0:
         suggestions.append("Upload your first resume to get an ATS score and AI feedback.")
     if avg_score < 50:
-        suggestions.append("Your average ATS score is below 50 — add more relevant keywords from job postings.")
+        suggestions.append("Your average ATS score is below 50 - add more relevant keywords from job postings.")
     if avg_score >= 50 and avg_score < 70:
         suggestions.append("Quantify achievements with numbers and percentages to improve your score.")
     if len(all_skills) < 10:
-        suggestions.append("Broaden your skill set — aim to showcase at least 10 relevant technical skills.")
+        suggestions.append("Broaden your skill set - aim to showcase at least 10 relevant technical skills.")
     if not suggestions:
         suggestions.append("Strong profile! Tailor each resume to specific job descriptions for higher scores.")
 
@@ -99,7 +99,7 @@ def recruiter_summary(
         shortlisted_total = sum(1 for r in rankings if r.shortlisted)
         upcoming_interviews = [
             r for r in rankings
-            if r.interview_date and r.interview_date > now.replace(tzinfo=None) if r.interview_date else False
+            if r.interview_date and r.interview_date.replace(tzinfo=None) > now.replace(tzinfo=None)
         ]
     else:
         shortlisted_total = 0
