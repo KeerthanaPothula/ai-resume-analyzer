@@ -41,6 +41,19 @@ async def lifespan(app: FastAPI):
     if settings.DATABASE_URL.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
 
+        # Additive migrations: add new columns if they don't exist yet
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            for stmt in [
+                "ALTER TABLE users ADD COLUMN reset_token_hash VARCHAR",
+                "ALTER TABLE users ADD COLUMN reset_token_expires DATETIME",
+            ]:
+                try:
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except Exception:
+                    pass  # Column already exists — safe to ignore
+
     yield
 
 

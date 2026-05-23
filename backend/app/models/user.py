@@ -27,6 +27,10 @@ class User(Base):
     refresh_token_hash = Column(String, nullable=True)   # SHA-256 of current refresh JWT
     last_login = Column(DateTime(timezone=True), nullable=True)
 
+    # Password reset
+    reset_token_hash = Column(String, nullable=True)
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

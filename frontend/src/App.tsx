@@ -10,6 +10,8 @@ import { useThemeStore, applyTheme } from "./stores/themeStore";
 const Landing          = lazy(() => import("./pages/Landing"));
 const Login            = lazy(() => import("./pages/Login"));
 const Register         = lazy(() => import("./pages/Register"));
+const ForgotPassword   = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword    = lazy(() => import("./pages/ResetPassword"));
 const CandidateDashboard = lazy(() => import("./pages/CandidateDashboard"));
 const RecruiterDashboard = lazy(() => import("./pages/RecruiterDashboard"));
 const ResumeUpload     = lazy(() => import("./pages/ResumeUpload"));
@@ -67,9 +69,11 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageSpinner />}>
       <Routes>
-        <Route path="/"         element={<Landing />} />
-        <Route path="/login"    element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/"                  element={<Landing />} />
+        <Route path="/login"             element={<Login />} />
+        <Route path="/register"          element={<Register />} />
+        <Route path="/forgot-password"   element={<ForgotPassword />} />
+        <Route path="/reset-password"    element={<ResetPassword />} />
 
         <Route path="/dashboard" element={
           <ProtectedRoute><DashboardRedirect /></ProtectedRoute>

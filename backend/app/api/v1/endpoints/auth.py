@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -17,7 +18,16 @@ from app.core.security import (
 )
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.user import ChangePasswordRequest, Token, TokenPair, TokenRefresh, UserCreate, UserResponse
+from app.schemas.user import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    Token,
+    TokenPair,
+    TokenRefresh,
+    UserCreate,
+    UserResponse,
+)
 
 router = APIRouter()
 
@@ -166,3 +176,88 @@ async def change_password(
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_active_user)):
     return current_user
+
+
+# ── POST /forgot-password ──────────────────────────────────────────────────────
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    # Generic message always returned — prevents email enumeration
+    generic_response = {"message": "If that email is registered, you will receive a reset link shortly."}
+
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user or not user.is_active:
+        return generic_response
+
+    raw_token = secrets.token_urlsafe(32)
+    user.reset_token_hash = hash_token(raw_token)
+    user.reset_token_expires = datetime.now(timezone.utc) + timedelta(minutes=settings.RESET_TOKEN_EXPIRE_MINUTES)
+    db.add(user)
+    db.commit()
+
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+
+    # Always print to terminal for dev observability
+    print(f"\n{'='*60}")
+    print(f"[DEV] Password reset requested for: {user.email}")
+    print(f"[DEV] Reset URL (valid {settings.RESET_TOKEN_EXPIRE_MINUTES} min):")
+    print(f"      {reset_url}")
+    print(f"{'='*60}\n")
+
+    # TODO: send email when SMTP_HOST is configured
+    # if settings.SMTP_HOST:
+    #     send_reset_email(user.email, reset_url)
+
+    # In dev (no SMTP), return the URL in the response for easy testing
+    if not settings.SMTP_HOST:
+        return {**generic_response, "dev_reset_url": reset_url}
+
+    return generic_response
+
+
+# ── POST /reset-password ───────────────────────────────────────────────────────
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    token_hash = hash_token(body.token)
+    user = db.query(User).filter(User.reset_token_hash == token_hash).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    now = datetime.now(timezone.utc)
+    expires = user.reset_token_expires
+    # SQLite stores naive datetimes; treat them as UTC
+    if expires is not None and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires is None or now > expires:
+        user.reset_token_hash = None
+        user.reset_token_expires = None
+        db.add(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired. Please request a new one.",
+        )
+
+    user.hashed_password = get_password_hash(body.new_password)
+    user.reset_token_hash = None
+    user.reset_token_expires = None
+    user.refresh_token_hash = None  # Revoke all active sessions
+    db.add(user)
+    db.commit()
+
+    return {"message": "Password reset successfully. You can now log in with your new password."}
