@@ -619,12 +619,32 @@ export default function CandidateDashboard() {
             </div>
           ) : applications.length === 0 ? (
             <div className="card">
-              <EmptyState
-                icon={Briefcase}
-                title="No applications yet"
-                description="Once a recruiter ranks your resume against a job posting, your application status will appear here."
-                action={{ label: "Explore Job Match", onClick: () => navigate("/job-match") }}
-              />
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center py-16 px-6 text-center"
+              >
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                  style={{ backgroundColor: "var(--border-color)" }}
+                >
+                  <Briefcase className="w-8 h-8" style={{ color: "var(--text-muted)" }} />
+                </div>
+                <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+                  You have not applied to any jobs yet
+                </h3>
+                <p className="text-sm max-w-xs mb-6" style={{ color: "var(--text-muted)" }}>
+                  Match your resume against a job posting and a recruiter will review your application. Your status will appear here once reviewed.
+                </p>
+                <div className="flex items-center gap-3 flex-wrap justify-center">
+                  <button onClick={() => navigate("/job-match")} className="btn-primary text-sm">
+                    <Target className="w-4 h-4" /> Browse Jobs
+                  </button>
+                  <button onClick={() => navigate("/upload")} className="btn-ghost text-sm">
+                    <Upload className="w-4 h-4" /> Upload Resume
+                  </button>
+                </div>
+              </motion.div>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
