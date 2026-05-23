@@ -47,7 +47,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: str = "noreply@resume-ai.app"
+    # Sender address — defaults to SMTP_USER when not set (required for Gmail)
+    EMAILS_FROM_EMAIL: Optional[str] = None
     EMAILS_FROM_NAME: str = "Resume AI"
 
 

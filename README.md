@@ -50,6 +50,8 @@ The AI Resume Intelligence Platform is a modern SaaS-quality hiring tool that br
 - Rate limiting on auth endpoints (slowapi)
 - Role-based access control: `candidate / recruiter / admin`
 - Password change with current-password verification
+- Forgot / Reset password with time-limited tokens (SHA-256 hashed, single-use)
+- SMTP email delivery with branded HTML template; dev fallback prints link to terminal
 
 ### UI/UX
 - Dark / light mode with persistent preference
@@ -193,6 +195,18 @@ GEMINI_MODEL=gemini-2.5-flash
 # File uploads
 UPLOAD_DIR=uploads
 MAX_FILE_SIZE_MB=10
+
+# Password reset
+FRONTEND_URL=http://localhost:5173   # Change to your production URL
+RESET_TOKEN_EXPIRE_MINUTES=30
+
+# SMTP email (optional — omit for dev mode where the link is shown on-screen)
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=you@gmail.com
+# SMTP_PASSWORD=xxxx-xxxx-xxxx-xxxx   # Gmail App Password
+# EMAILS_FROM_EMAIL=you@gmail.com
+# EMAILS_FROM_NAME=Resume AI
 ```
 
 ### Frontend (`frontend/.env`)
@@ -201,6 +215,86 @@ MAX_FILE_SIZE_MB=10
 # Leave blank for local dev (Vite proxy handles /api/* → localhost:8000)
 # VITE_API_URL=https://your-backend.render.com
 ```
+
+---
+
+## Configuring Email (SMTP)
+
+The forgot-password flow sends a branded HTML email with a time-limited reset link.
+
+### Dev mode (no SMTP configured)
+
+When `SMTP_HOST` is not set, the backend:
+1. Prints the reset URL to the terminal (visible in `uvicorn` output)
+2. Returns `dev_reset_url` in the API response, which the frontend displays in an amber panel
+
+No configuration needed — this works out of the box for local development.
+
+### Production: Gmail
+
+Gmail requires an **App Password** (not your regular account password).
+
+**Steps:**
+1. Go to your [Google Account](https://myaccount.google.com) → **Security**
+2. Enable **2-Step Verification** (required)
+3. Search for **"App passwords"** → create one → copy the 16-character code
+4. Add to `backend/.env`:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your.email@gmail.com
+SMTP_PASSWORD=xxxx xxxx xxxx xxxx
+EMAILS_FROM_EMAIL=your.email@gmail.com
+EMAILS_FROM_NAME=Resume AI
+```
+
+> Note: `EMAILS_FROM_EMAIL` must match `SMTP_USER` for Gmail.
+
+### Production: Outlook / Hotmail
+
+```env
+SMTP_HOST=smtp-mail.outlook.com
+SMTP_PORT=587
+SMTP_USER=your.email@outlook.com
+SMTP_PASSWORD=your-outlook-password
+EMAILS_FROM_EMAIL=your.email@outlook.com
+EMAILS_FROM_NAME=Resume AI
+```
+
+### Production: SendGrid (recommended for scale)
+
+SendGrid's free tier allows 100 emails/day. No domain verification needed for the SMTP relay.
+
+1. Create a [SendGrid](https://sendgrid.com) account → **Settings → API Keys → Create API Key**
+2. Grant **Mail Send** permission
+3. Add to `backend/.env`:
+
+```env
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_USER=apikey
+SMTP_PASSWORD=SG.your-api-key-here
+EMAILS_FROM_EMAIL=noreply@yourdomain.com
+EMAILS_FROM_NAME=Resume AI
+```
+
+### API routes
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v1/auth/forgot-password` | Generate reset token, send email (rate limited: 3/min) |
+| POST | `/api/v1/auth/reset-password` | Validate token, update password, revoke sessions |
+
+### Security properties
+
+- Reset tokens are `secrets.token_urlsafe(32)` — 256 bits of entropy
+- Only the SHA-256 hash is stored in the database
+- Tokens expire after `RESET_TOKEN_EXPIRE_MINUTES` (default: 30)
+- Tokens are single-use — consumed on successful reset
+- All active sessions (refresh tokens) are revoked after a reset
+- The endpoint returns the same generic message whether or not the email exists (prevents enumeration)
+- The reset URL is **never included in the production response** when SMTP is configured
 
 ---
 
@@ -272,6 +366,8 @@ Register (recruiter) → Login
 | POST | `/api/v1/auth/logout` | Revoke refresh token |
 | POST | `/api/v1/auth/change-password` | Change password |
 | GET | `/api/v1/auth/me` | Current user |
+| POST | `/api/v1/auth/forgot-password` | Request password reset email |
+| POST | `/api/v1/auth/reset-password` | Reset password with token |
 | POST | `/api/v1/resumes/upload` | Upload PDF/DOCX |
 | GET | `/api/v1/resumes/` | List resumes |
 | DELETE | `/api/v1/resumes/{id}` | Delete resume |
@@ -303,7 +399,8 @@ Every transition is timestamped and shown on the candidate dashboard with recrui
 
 ## Future Roadmap
 
-- [ ] Email notifications (SendGrid/Resend) on status changes
+- [x] Email delivery for password reset (SMTP — Gmail, Outlook, SendGrid)
+- [ ] Email notifications on application status changes
 - [ ] Multi-round interview stages
 - [ ] Bulk CSV export of candidate rankings
 - [ ] LinkedIn OAuth login

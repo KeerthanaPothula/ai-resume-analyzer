@@ -202,22 +202,23 @@ async def forgot_password(
 
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
 
-    # Always print to terminal for dev observability
-    print(f"\n{'='*60}")
-    print(f"[DEV] Password reset requested for: {user.email}")
-    print(f"[DEV] Reset URL (valid {settings.RESET_TOKEN_EXPIRE_MINUTES} min):")
-    print(f"      {reset_url}")
-    print(f"{'='*60}\n")
-
-    # TODO: send email when SMTP_HOST is configured
-    # if settings.SMTP_HOST:
-    #     send_reset_email(user.email, reset_url)
-
-    # In dev (no SMTP), return the URL in the response for easy testing
-    if not settings.SMTP_HOST:
+    if settings.SMTP_HOST:
+        # Production: send real email, never expose the token in the response
+        try:
+            from app.services.email import send_reset_email
+            await send_reset_email(user.email, reset_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
+        except Exception as exc:
+            # Log the error but don't reveal it to the caller (prevents info leakage)
+            print(f"[ERROR] Failed to send reset email to {user.email}: {exc}")
+        return generic_response
+    else:
+        # Dev fallback: print to terminal and include URL in response body
+        print(f"\n{'='*60}")
+        print(f"[DEV] Password reset requested for: {user.email}")
+        print(f"[DEV] Reset URL (valid {settings.RESET_TOKEN_EXPIRE_MINUTES} min):")
+        print(f"      {reset_url}")
+        print(f"{'='*60}\n")
         return {**generic_response, "dev_reset_url": reset_url}
-
-    return generic_response
 
 
 # ── POST /reset-password ───────────────────────────────────────────────────────
