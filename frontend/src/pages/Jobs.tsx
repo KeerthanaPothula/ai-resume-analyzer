@@ -8,7 +8,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import Layout from "../components/layout/Layout";
-import { jobApi, resumeApi, applicationApi } from "../lib/api";
+import { jobApi, resumeApi, applicationApi, rankingApi } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 
 interface Job {
@@ -328,7 +328,7 @@ export default function Jobs() {
 
   const { data: myApps = [] } = useQuery<{ job_id: number }[]>({
     queryKey: ["my-applications"],
-    queryFn: () => import("../lib/api").then((m) => m.rankingApi.myApplications().then((r) => r.data)),
+    queryFn: () => rankingApi.myApplications().then((r) => r.data),
     enabled: user?.role === "candidate",
   });
 
@@ -359,6 +359,7 @@ export default function Jobs() {
 
   const handleApplySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["my-applications"] });
+    queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
   };
 
   return (
