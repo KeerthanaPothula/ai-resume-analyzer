@@ -7,7 +7,7 @@ from sqlalchemy import func
 from app.db.database import get_db
 from app.models.user import User
 from app.models.resume import Resume
-from app.models.job import JobDescription
+from app.models.job import JobDescription, CandidateRanking, ApplicationStatus
 from app.core.security import get_current_active_user, require_role
 
 router = APIRouter()
@@ -31,7 +31,7 @@ def candidate_summary(
         suggestions.append("Upload your first resume to get an ATS score and AI feedback.")
     if avg_score < 50:
         suggestions.append("Your average ATS score is below 50 — add more relevant keywords from job postings.")
-    if avg_score < 70 and avg_score >= 50:
+    if avg_score >= 50 and avg_score < 70:
         suggestions.append("Quantify achievements with numbers and percentages to improve your score.")
     if len(all_skills) < 10:
         suggestions.append("Broaden your skill set — aim to showcase at least 10 relevant technical skills.")
@@ -75,6 +75,7 @@ def recruiter_summary(
         .filter(JobDescription.recruiter_id == current_user.id)
         .all()
     )
+    job_ids = [j.id for j in jobs]
 
     total_candidates = db.query(func.count(Resume.id)).scalar() or 0
     now = datetime.now(timezone.utc)
@@ -83,10 +84,34 @@ def recruiter_summary(
         if j.created_at.month == now.month and j.created_at.year == now.year
     ]
 
+    # Hiring funnel — aggregate across all recruiter's jobs
+    funnel: dict[str, int] = {s.value: 0 for s in ApplicationStatus}
+    if job_ids:
+        rankings = (
+            db.query(CandidateRanking)
+            .filter(CandidateRanking.job_id.in_(job_ids))
+            .all()
+        )
+        for r in rankings:
+            status_key = r.application_status.value if r.application_status else "applied"
+            funnel[status_key] = funnel.get(status_key, 0) + 1
+
+        shortlisted_total = sum(1 for r in rankings if r.shortlisted)
+        upcoming_interviews = [
+            r for r in rankings
+            if r.interview_date and r.interview_date > now.replace(tzinfo=None) if r.interview_date else False
+        ]
+    else:
+        shortlisted_total = 0
+        upcoming_interviews = []
+
     return {
         "total_jobs": len(jobs),
         "total_candidates": total_candidates,
         "jobs_this_month": len(this_month_jobs),
+        "shortlisted_total": shortlisted_total,
+        "upcoming_interviews": len(upcoming_interviews),
+        "hiring_funnel": funnel,
         "jobs": [
             {
                 "id": j.id,

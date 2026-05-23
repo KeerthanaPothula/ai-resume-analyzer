@@ -1,115 +1,77 @@
 # AI Resume Intelligence Platform
 
-A production-ready, full-stack AI-powered resume analysis and candidate ranking platform built with **FastAPI**, **React**, **PostgreSQL**, and state-of-the-art NLP models.
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> A production-grade, full-stack AI recruitment platform that automates resume analysis, ATS scoring, candidate ranking, and end-to-end application tracking — powered by Google Gemini / OpenAI.
+
+---
+
+## Overview
+
+The AI Resume Intelligence Platform is a modern SaaS-quality hiring tool that bridges candidates and recruiters with AI. It combines ATS scoring, semantic job matching, LLM-powered feedback, and a complete application status workflow — making it comparable to Lever, Greenhouse, and LinkedIn Recruiter.
+
+**Candidate** — Upload resumes, get instant AI analysis, match against jobs, and track every application status from a single dashboard.
+
+**Recruiter** — Post jobs, rank the entire candidate pool in one click, move candidates through a hiring pipeline with interview scheduling, and view real analytics.
 
 ---
 
 ## Features
 
-### Candidate
-- Upload PDF / DOCX resumes
-- AI-powered resume parsing (name, email, phone, location)
-- Automatic skill extraction (500+ tech keywords)
-- ATS score calculation
-- AI feedback and improvement suggestions
-- Analytics dashboard with charts
+### AI & Intelligence
+- **ATS Scoring** — Multi-factor score: skill match (40%), experience (25%), education (20%), semantic similarity (15%)
+- **Semantic Job Matching** — TF-IDF embeddings + cosine similarity for deep resume-to-job compatibility
+- **LLM Feedback** — Google Gemini 2.5 Flash or OpenAI GPT-4o-mini for narrative feedback, gap analysis, and interview prep questions
+- **Skill Extraction** — 200+ technical and soft skills from resume text
+- **Career Chat** — AI coaching assistant with live resume context
 
-### Recruiter
-- Post job descriptions
-- Automatic skill extraction from JD
-- Rank candidates semantically against job requirements
-- Skill gap analysis
-- Interview question generation
-- Side-by-side candidate comparison
+### Application Tracking System
+- Six-stage pipeline: `Applied → Under Review → Shortlisted → Interview Scheduled → Accepted/Rejected`
+- Recruiter status changes are instantly reflected on the candidate's dashboard
+- Interview scheduling with date/time picker, meeting link, and custom instructions
+- Notification badge for new status updates
+- Recruiter notes surfaced to candidates post-shortlisting
 
-### Admin
-- User management
-- Platform-wide analytics
-- System health monitoring
+### Recruiter Tools
+- Job pipeline management with search, edit, delete
+- Candidate pool browser with score-range filters and multi-sort
+- Bulk AI ranking that preserves existing pipeline decisions on re-rank
+- Hiring funnel KPIs: shortlisted, interviewing, accepted, rejected counts
+- Analytics: score distributions, job posting trends, most in-demand skills
 
-### AI / ML Engine
-- `sentence-transformers/all-MiniLM-L6-v2` for semantic embeddings
-- Cosine similarity for semantic matching
-- Multi-factor ATS scoring (skills 40% + experience 20% + education 15% + semantic 25%)
-- spaCy NLP pipeline
-- FAISS-ready vector store
+### Security
+- JWT access + refresh token rotation (SHA-256 hash stored server-side)
+- Silent token refresh via Axios interceptor
+- Rate limiting on auth endpoints (slowapi)
+- Role-based access control: `candidate / recruiter / admin`
+- Password change with current-password verification
+
+### UI/UX
+- Dark / light mode with persistent preference
+- Skeleton loaders on every data-heavy view
+- Framer Motion animations and tab transitions
+- Mobile-responsive sidebar with animated drawer
+- Optimistic UI updates on pipeline status changes
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, Recharts |
-| Backend | FastAPI, Python 3.11, SQLAlchemy, Alembic, JWT |
-| Database | PostgreSQL 15 |
-| AI/ML | sentence-transformers, spaCy, scikit-learn, PyMuPDF |
-| DevOps | Docker, Docker Compose, Nginx |
-
----
-
-## Quick Start (Docker)
-
-### Prerequisites
-- Docker & Docker Compose installed
-
-### 1. Clone / Extract Project
-
-```bash
-cd ai-resume-platform
-```
-
-### 2. Configure Environment
-
-```bash
-cp .env.example .env
-# Edit .env with your secrets if needed
-```
-
-### 3. Start the Platform
-
-```bash
-docker-compose up --build
-```
-
-### 4. Access the App
-
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| API Docs | http://localhost:8000/api/docs |
-| ReDoc | http://localhost:8000/api/redoc |
-
----
-
-## Local Development (Without Docker)
-
-### Backend
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm
-
-# Set your DB URL
-export DATABASE_URL="postgresql://user:pass@localhost:5432/resumedb"
-export SECRET_KEY="your-secret-key"
-
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-echo "VITE_API_URL=http://localhost:8000" > .env.local
-npm run dev
-```
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| State / Data | TanStack Query v5, Zustand |
+| UI / Motion | Framer Motion, Lucide React, Recharts |
+| Backend | Python 3.11, FastAPI, SQLAlchemy |
+| Database | SQLite (dev) / PostgreSQL (prod) |
+| AI | Google Gemini 2.5 Flash / OpenAI GPT-4o-mini |
+| Auth | JWT (PyJWT), bcrypt, slowapi |
+| Deploy | Vercel (frontend) + Render/Railway (backend) |
 
 ---
 
@@ -117,123 +79,241 @@ npm run dev
 
 ```
 ai-resume-platform/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/         # Sidebar, Layout
-│   │   │   └── ui/             # ScoreRing, SkillBadge, StatsCard
-│   │   ├── pages/              # All page components
-│   │   ├── hooks/              # useAuth context
-│   │   ├── lib/                # Axios API client
-│   │   └── types/              # TypeScript types
-│   ├── Dockerfile
-│   └── nginx.conf
-│
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/endpoints/   # auth, resumes, jobs, analysis, rankings
-│   │   ├── core/               # config, security/JWT
-│   │   ├── db/                 # SQLAlchemy engine
-│   │   ├── models/             # User, Resume, JobDescription, ATSScore
-│   │   ├── schemas/            # Pydantic models
-│   │   └── services/
-│   │       ├── ai/             # scoring_engine, skill_extractor
-│   │       └── parsers/        # resume_parser (PDF/DOCX)
-│   ├── alembic/                # DB migrations
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── docker-compose.yml
-├── .env.example
-└── README.md
+│   │   ├── api/v1/endpoints/
+│   │   │   ├── auth.py          # Register, login, refresh, logout, change-password
+│   │   │   ├── resumes.py       # Upload, list, get, delete
+│   │   │   ├── jobs.py          # CRUD for job descriptions
+│   │   │   ├── analysis.py      # ATS scoring
+│   │   │   ├── rankings.py      # Rank, get, my-applications, PATCH status
+│   │   │   ├── ai_feedback.py   # LLM feedback, quick-match, career chat
+│   │   │   ├── dashboard.py     # Candidate + recruiter summaries
+│   │   │   └── users.py         # User management (admin)
+│   │   ├── models/
+│   │   │   ├── user.py          # User, UserRole
+│   │   │   └── job.py           # JobDescription, ATSScore, CandidateRanking, ApplicationStatus
+│   │   ├── services/
+│   │   │   ├── ai/
+│   │   │   │   ├── scoring_engine.py   # ATS scoring, embeddings
+│   │   │   │   ├── skill_extractor.py  # Skill extraction, gap analysis
+│   │   │   │   └── llm_service.py      # Gemini/OpenAI adapter + template fallback
+│   │   │   └── parsers/resume_parser.py
+│   │   └── core/
+│   │       ├── config.py        # Pydantic settings
+│   │       ├── security.py      # JWT, bcrypt, role guards
+│   │       └── limiter.py       # Rate limiter
+│   ├── requirements.txt
+│   └── .env.example
+└── frontend/
+    ├── src/
+    │   ├── pages/               # Route-level components
+    │   ├── components/          # Shared UI (Layout, StatsCard, ScoreRing, …)
+    │   ├── hooks/useAuth.tsx    # Auth context + token management
+    │   ├── lib/api.ts           # Axios instance + all API functions
+    │   ├── stores/themeStore.ts # Zustand dark/light theme
+    │   └── types/index.ts       # TypeScript types
+    └── vite.config.ts
 ```
 
 ---
 
-## API Endpoints
+## Getting Started
 
-### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Register new user |
-| POST | `/api/v1/auth/login` | Login (returns JWT) |
-| GET | `/api/v1/auth/me` | Get current user |
+### Prerequisites
 
-### Resumes
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/resumes/upload` | Upload + parse resume |
-| GET | `/api/v1/resumes/` | List resumes |
-| GET | `/api/v1/resumes/{id}` | Get resume detail |
-| DELETE | `/api/v1/resumes/{id}` | Delete resume |
+- Python 3.11+
+- Node.js 18+
+- (Optional) Google Gemini or OpenAI API key
 
-### Jobs
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/jobs/` | Create job description |
-| GET | `/api/v1/jobs/` | List jobs |
-| GET | `/api/v1/jobs/{id}` | Get job |
-| DELETE | `/api/v1/jobs/{id}` | Delete job |
+### 1. Clone
 
-### Analysis
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/analysis/score/{resume_id}/{job_id}` | Score resume vs job |
-| GET | `/api/v1/analysis/scores/resume/{id}` | All scores for resume |
-| GET | `/api/v1/analysis/scores/job/{id}` | All scores for job |
+```bash
+git clone https://github.com/your-username/ai-resume-platform.git
+cd ai-resume-platform
+```
 
-### Rankings
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/rankings/rank/{job_id}` | Rank candidates |
-| GET | `/api/v1/rankings/job/{job_id}` | Get rankings |
+### 2. Backend
+
+```bash
+cd backend
+
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+cp .env.example .env
+# Edit .env (see Environment Variables section)
+
+uvicorn app.main:app --reload --port 8000
+```
+
+API: `http://localhost:8000`  
+Swagger docs: `http://localhost:8000/docs`
+
+### 3. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+App: `http://localhost:5173`
 
 ---
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://...` | PostgreSQL connection string |
-| `SECRET_KEY` | `supersecretkey...` | JWT signing key (change in production!) |
-| `ALGORITHM` | `HS256` | JWT algorithm |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | Token expiry |
-| `VITE_API_URL` | `http://localhost:8000` | Frontend API URL |
+### Backend (`backend/.env`)
+
+```env
+# Database
+DATABASE_URL=sqlite:///./resume.db
+# PostgreSQL (production):
+# DATABASE_URL=postgresql://user:password@host:5432/dbname
+
+# Security — change SECRET_KEY in production!
+SECRET_KEY=change-this-to-a-random-32-char-string
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# AI provider — leave "none" for template-based fallback (no API key needed)
+LLM_PROVIDER=gemini          # "gemini" | "openai" | "none"
+GEMINI_API_KEY=your-key-here
+GEMINI_MODEL=gemini-2.5-flash
+
+# OPENAI_API_KEY=your-key-here
+# OPENAI_MODEL=gpt-4o-mini
+
+# File uploads
+UPLOAD_DIR=uploads
+MAX_FILE_SIZE_MB=10
+```
+
+### Frontend (`frontend/.env`)
+
+```env
+# Leave blank for local dev (Vite proxy handles /api/* → localhost:8000)
+# VITE_API_URL=https://your-backend.render.com
+```
 
 ---
 
-## Default Demo Accounts
+## Deployment
 
-After starting, register your own accounts via the UI, or seed manually via the API:
+### Frontend — Vercel
+
+1. Push repo to GitHub
+2. Import into Vercel → set **Root Directory**: `frontend`
+3. Build command: `npm run build` | Output dir: `dist`
+4. Environment variable: `VITE_API_URL=https://your-backend-url`
+5. Deploy
+
+### Backend — Render
+
+1. New **Web Service** → connect repo → set **Root Directory**: `backend`
+2. Build command: `pip install -r requirements.txt`
+3. Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. Add all `.env` variables in the Render dashboard
+5. Create a **PostgreSQL** database and copy the `DATABASE_URL`
+6. Deploy
+
+### Backend — Railway
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"candidate@demo.com","full_name":"Demo Candidate","password":"demo123","role":"candidate"}'
-
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"recruiter@demo.com","full_name":"Demo Recruiter","password":"demo123","role":"recruiter"}'
+railway login && railway init
+railway variables set SECRET_KEY=... GEMINI_API_KEY=... DATABASE_URL=...
+railway up
 ```
 
 ---
 
-## Screenshots
+## Candidate Workflow
 
 ```
-Landing Page   → /
-Login          → /login
-Register       → /register
-Candidate      → /candidate    (after login as candidate)
-Recruiter      → /recruiter    (after login as recruiter)
-Upload Resume  → /upload
-Analysis       → /analysis/:id
-Rankings       → /ranking/:id
-Admin          → /admin        (after login as admin)
+Register → Login
+  → Upload Resume (PDF/DOCX)
+  → AI parses: skills, experience, education, ATS score
+  → View Analysis: feedback, radar chart, strengths/weaknesses
+  → Job Match: paste any job → instant AI compatibility score + gap analysis
+  → Career Chat: ask the AI coach anything about your profile
+  → My Applications: see status for every job a recruiter ranked you for
+  → Interview Scheduled → view date, join meeting link, read instructions
 ```
+
+## Recruiter Workflow
+
+```
+Register (recruiter) → Login
+  → Post Job: title, company, description, required skills
+  → Browse Candidate Pool: filter by score, sort by name/date
+  → Rank Candidates: one-click AI scoring against the job
+  → Review Rankings: matched skills, missing skills, interview questions
+  → Update Status: Applied → Shortlisted → Interview Scheduled
+  → Schedule Interview: date, meeting link, custom instructions (visible to candidate)
+  → Accept / Reject
+  → Analytics: hiring funnel KPIs, score distributions, skill demand
+```
+
+---
+
+## API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v1/auth/register` | Register |
+| POST | `/api/v1/auth/login` | Login (returns token pair) |
+| POST | `/api/v1/auth/refresh` | Rotate tokens |
+| POST | `/api/v1/auth/logout` | Revoke refresh token |
+| POST | `/api/v1/auth/change-password` | Change password |
+| GET | `/api/v1/auth/me` | Current user |
+| POST | `/api/v1/resumes/upload` | Upload PDF/DOCX |
+| GET | `/api/v1/resumes/` | List resumes |
+| DELETE | `/api/v1/resumes/{id}` | Delete resume |
+| POST | `/api/v1/jobs/` | Create job |
+| GET/PUT/DELETE | `/api/v1/jobs/{id}` | Manage job |
+| POST | `/api/v1/analysis/score/{resume_id}/{job_id}` | Score resume vs job |
+| POST | `/api/v1/rankings/rank/{job_id}` | Rank all candidates |
+| GET | `/api/v1/rankings/job/{job_id}` | Get rankings |
+| GET | `/api/v1/rankings/my-applications` | Candidate: own application statuses |
+| PATCH | `/api/v1/rankings/{id}` | Update status, notes, interview details |
+| GET | `/api/v1/dashboard/candidate` | Candidate dashboard summary |
+| GET | `/api/v1/dashboard/recruiter` | Recruiter dashboard + hiring funnel |
+| POST | `/api/v1/ai-feedback/resume/{id}` | LLM resume feedback |
+| POST | `/api/v1/ai-feedback/quick-match` | Instant job match |
+| POST | `/api/v1/ai-feedback/chat` | Career coaching chat |
+
+---
+
+## Application Status Pipeline
+
+```
+Applied → Under Review → Shortlisted → Interview Scheduled → Accepted
+                                                           ↘ Rejected
+```
+
+Every transition is timestamped and shown on the candidate dashboard with recruiter notes and interview details.
+
+---
+
+## Future Roadmap
+
+- [ ] Email notifications (SendGrid/Resend) on status changes
+- [ ] Multi-round interview stages
+- [ ] Bulk CSV export of candidate rankings
+- [ ] LinkedIn OAuth login
+- [ ] Multi-recruiter organization support
+- [ ] AI job description generator
+- [ ] Resume version diff view
+- [ ] Webhook integration for Workday / Greenhouse
 
 ---
 
 ## License
 
-MIT — Free to use and modify.
+MIT — free to use, modify, and distribute.

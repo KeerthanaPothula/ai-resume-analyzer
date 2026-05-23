@@ -2,13 +2,15 @@ import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, Upload, FileText, Briefcase, BarChart3,
-  Settings, LogOut, Brain, Users, ChevronRight, Star,
+  LayoutDashboard, Upload, Briefcase, BarChart3,
+  LogOut, Brain, ChevronRight,
   Sun, Moon, Menu, X, Bell, UserCircle, Target,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
 import { useThemeStore, applyTheme } from "../../stores/themeStore";
+import { rankingApi } from "../../lib/api";
 import toast from "react-hot-toast";
 
 interface NavItem {
@@ -20,18 +22,19 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: "Dashboard",    path: "/candidate",  icon: LayoutDashboard, roles: ["candidate"] },
-  { label: "Dashboard",    path: "/recruiter",  icon: LayoutDashboard, roles: ["recruiter"] },
-  { label: "Dashboard",    path: "/admin",      icon: LayoutDashboard, roles: ["admin"] },
-  { label: "Upload Resume",path: "/upload",     icon: Upload,          roles: ["candidate"] },
-  { label: "My Resumes",   path: "/candidate",  icon: FileText,        roles: ["candidate"] },
-  { label: "Job Match",    path: "/job-match",  icon: Target,          roles: ["candidate"] },
-  { label: "Post a Job",   path: "/jobs/create",icon: Briefcase,       roles: ["recruiter", "admin"] },
-  { label: "Candidates",   path: "/recruiter",  icon: Users,           roles: ["recruiter", "admin"] },
-  { label: "Rankings",     path: "/recruiter",  icon: Star,            roles: ["recruiter", "admin"] },
-  { label: "Analytics",    path: "/admin",      icon: BarChart3,       roles: ["admin"] },
-  { label: "Profile",      path: "/profile",    icon: UserCircle,      roles: ["candidate", "recruiter", "admin"] },
-  { label: "Settings",     path: "/profile",    icon: Settings,        roles: ["candidate", "recruiter", "admin"] },
+  // Candidate navigation
+  { label: "Dashboard",     path: "/candidate",   icon: LayoutDashboard, roles: ["candidate"] },
+  { label: "Upload Resume", path: "/upload",       icon: Upload,          roles: ["candidate"] },
+  { label: "Job Match",     path: "/job-match",    icon: Target,          roles: ["candidate"] },
+  // Recruiter navigation
+  { label: "Dashboard",     path: "/recruiter",    icon: LayoutDashboard, roles: ["recruiter"] },
+  { label: "Post a Job",    path: "/jobs/create",  icon: Briefcase,       roles: ["recruiter"] },
+  // Admin navigation
+  { label: "Dashboard",     path: "/admin",        icon: LayoutDashboard, roles: ["admin"] },
+  { label: "Post a Job",    path: "/jobs/create",  icon: Briefcase,       roles: ["admin"] },
+  { label: "Analytics",     path: "/admin",        icon: BarChart3,       roles: ["admin"] },
+  // Shared
+  { label: "Profile",       path: "/profile",      icon: UserCircle,      roles: ["candidate", "recruiter", "admin"] },
 ];
 
 function Avatar({ name }: { name: string }) {
@@ -299,6 +302,37 @@ function SidebarContent({ onClose }: SidebarContentProps) {
   );
 }
 
+function NotificationBell() {
+  const { user } = useAuth();
+
+  // Candidates: check for recent application status updates
+  const { data: apps = [] } = useQuery({
+    queryKey: ["my-applications"],
+    queryFn: () => rankingApi.myApplications().then(r => r.data),
+    enabled: user?.role === "candidate",
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const unreadCount = (apps as any[]).filter(a => {
+    if (!a.updated_at) return false;
+    const diff = Date.now() - new Date(a.updated_at).getTime();
+    return diff < 86400000 && a.application_status !== 'applied';
+  }).length;
+
+  return (
+    <div className="relative">
+      <button className="btn-ghost p-2 rounded-lg" aria-label="Notifications">
+        <Bell className="w-4 h-4" />
+      </button>
+      {unreadCount > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-sky-500 text-white text-[9px] font-bold flex items-center justify-center pointer-events-none">
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TopNav({
   onMenuClick,
   title,
@@ -337,9 +371,7 @@ function TopNav({
 
       {/* Right: actions */}
       <div className="flex items-center gap-1">
-        <button className="btn-ghost p-2 rounded-lg relative" aria-label="Notifications">
-          <Bell className="w-4 h-4" />
-        </button>
+        <NotificationBell />
 
         {/* Avatar pill */}
         {user && (

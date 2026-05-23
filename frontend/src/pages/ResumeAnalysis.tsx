@@ -18,9 +18,9 @@ import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorBoundary from "../components/error/ErrorBoundary";
 import EmptyState from "../components/ui/EmptyState";
 import { AIResumeFeedbackPanel, AIJobMatchPanel } from "../components/AIFeedbackPanel";
-import { resumeApi, analysisApi } from "../lib/api";
+import { resumeApi, analysisApi, jobApi } from "../lib/api";
 import { useThemeStore } from "../stores/themeStore";
-import { Resume, ATSScore } from "../types";
+import { Resume, ATSScore, JobDescription } from "../types";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -130,10 +130,12 @@ function JobMatchCard({
   score,
   index,
   resumeId,
+  jobTitle,
 }: {
   score: ATSScore;
   index: number;
   resumeId: number;
+  jobTitle?: string;
 }) {
   const label = scoreLabel(score.overall_score);
 
@@ -150,7 +152,7 @@ function JobMatchCard({
             <Briefcase className="w-4 h-4 text-violet-500" />
           </div>
           <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-            Job #{score.job_id}
+            {jobTitle ?? `Job #${score.job_id}`}
           </span>
         </div>
         <span className={`text-lg font-bold ${label.color}`}>
@@ -229,6 +231,14 @@ export default function ResumeAnalysis() {
     queryFn: () => analysisApi.getResumeScores(id).then((r) => r.data),
     enabled: id > 0,
   });
+
+  const { data: jobs = [] } = useQuery<JobDescription[]>({
+    queryKey: ["jobs"],
+    queryFn: () => jobApi.list().then((r) => r.data),
+    enabled: jobScores.length > 0,
+  });
+
+  const jobTitleMap = Object.fromEntries(jobs.map((j) => [j.id, j.title]));
 
   if (isLoading) {
     return (
@@ -574,7 +584,7 @@ export default function ResumeAnalysis() {
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               {jobScores.map((s, i) => (
-                <JobMatchCard key={s.id} score={s} index={i} resumeId={id} />
+                <JobMatchCard key={s.id} score={s} index={i} resumeId={id} jobTitle={jobTitleMap[s.job_id]} />
               ))}
             </div>
           </div>

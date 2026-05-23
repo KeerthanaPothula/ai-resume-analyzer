@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float
+import enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, Boolean, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -51,6 +52,15 @@ class ATSScore(Base):
     job = relationship("JobDescription", back_populates="ats_scores")
 
 
+class ApplicationStatus(str, enum.Enum):
+    applied = "applied"
+    under_review = "under_review"
+    shortlisted = "shortlisted"
+    interview_scheduled = "interview_scheduled"
+    rejected = "rejected"
+    accepted = "accepted"
+
+
 class CandidateRanking(Base):
     __tablename__ = "candidate_rankings"
 
@@ -59,8 +69,22 @@ class CandidateRanking(Base):
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
     rank = Column(Integer)
     score = Column(Float, default=0.0)
-    notes = Column(Text)
+
+    # Application tracking — proper columns replacing the JSON-blob hack
+    application_status = Column(
+        SAEnum(ApplicationStatus, name="applicationstatus"),
+        default=ApplicationStatus.applied,
+        nullable=False,
+        server_default=ApplicationStatus.applied.value,
+    )
+    shortlisted = Column(Boolean, default=False, nullable=False, server_default="0")
+    recruiter_notes = Column(Text, nullable=True)
+    interview_date = Column(DateTime(timezone=True), nullable=True)
+    meeting_link = Column(String, nullable=True)
+    interview_instructions = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     job = relationship("JobDescription", back_populates="rankings")
     resume = relationship("Resume", back_populates="rankings")

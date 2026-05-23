@@ -6,6 +6,8 @@ import {
   Star, X, ChevronDown, ChevronUp,
   Briefcase, GraduationCap, MessageSquare, Check,
   BarChart3, Zap, SlidersHorizontal, HelpCircle,
+  Calendar, Link2, ClipboardList, CheckCircle2,
+  XCircle, Clock, Eye, Filter,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -16,29 +18,54 @@ import SkillBadge from '../components/ui/SkillBadge';
 import ScoreRing from '../components/ui/ScoreRing';
 import EmptyState from '../components/ui/EmptyState';
 import { jobApi, resumeApi, rankingApi } from '../lib/api';
-import { JobDescription, Resume } from '../types';
+import {
+  JobDescription, Resume,
+  ApplicationStatus, APPLICATION_STATUS_LABELS, APPLICATION_STATUS_COLORS,
+  APPLICATION_STATUS_ORDER, RankingEntry,
+} from '../types';
 import { useThemeStore } from '../stores/themeStore';
 
-interface RankingRow {
-  ranking_id?: number;
-  rank: number;
-  score: number;
-  shortlisted: boolean;
-  notes: string;
-  resume_id: number;
-  candidate_name: string | null;
-  candidate_email: string | null;
-  skills: string[];
-  experience_years: number;
-  education_level: string | null;
-  matched_skills: string[];
-  missing_skills: string[];
-  skill_match_score: number;
-  semantic_similarity: number;
-  interview_questions: string[];
+// ── Status Badge ───────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: ApplicationStatus }) {
+  const c = APPLICATION_STATUS_COLORS[status];
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      {APPLICATION_STATUS_LABELS[status]}
+    </span>
+  );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Status Dropdown ────────────────────────────────────────────────────────────
+
+function StatusDropdown({
+  current,
+  onChange,
+  disabled,
+}: {
+  current: ApplicationStatus;
+  onChange: (s: ApplicationStatus) => void;
+  disabled?: boolean;
+}) {
+  const c = APPLICATION_STATUS_COLORS[current];
+  return (
+    <select
+      value={current}
+      onChange={e => onChange(e.target.value as ApplicationStatus)}
+      disabled={disabled}
+      className={`text-xs font-medium px-2.5 py-1.5 rounded-lg border outline-none cursor-pointer transition-all focus:ring-2 focus:ring-violet-500/30 disabled:opacity-50 ${c.bg} ${c.text} ${c.border}`}
+    >
+      {APPLICATION_STATUS_ORDER.map(s => (
+        <option key={s} value={s} className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+          {APPLICATION_STATUS_LABELS[s]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// ── Score Bar ──────────────────────────────────────────────────────────────────
 
 function ScoreBar({ label, value, color = '#0ea5e9' }: { label: string; value: number; color?: string }) {
   return (
@@ -60,25 +87,49 @@ function ScoreBar({ label, value, color = '#0ea5e9' }: { label: string; value: n
   );
 }
 
+// ── Candidate Detail Modal ─────────────────────────────────────────────────────
+
 function CandidateDetail({
   entry,
   onClose,
-  onToggleShortlist,
-  onSaveNotes,
+  onUpdate,
 }: {
-  entry: RankingRow;
+  entry: RankingEntry;
   onClose: () => void;
-  onToggleShortlist: (entry: RankingRow) => void;
-  onSaveNotes: (entry: RankingRow, notes: string) => void;
+  onUpdate: (rankingId: number, patch: Partial<RankingEntry>) => Promise<void>;
 }) {
-  const [notes, setNotes] = useState(entry.notes || '');
+  const [status, setStatus] = useState<ApplicationStatus>(entry.application_status || 'applied');
+  const [notes, setNotes] = useState(entry.recruiter_notes || '');
+  const [interviewDate, setInterviewDate] = useState(
+    entry.interview_date ? entry.interview_date.slice(0, 16) : ''
+  );
+  const [meetingLink, setMeetingLink] = useState(entry.meeting_link || '');
+  const [instructions, setInstructions] = useState(entry.interview_instructions || '');
   const [saving, setSaving] = useState(false);
 
-  const handleSaveNotes = async () => {
+  const isDirty =
+    status !== (entry.application_status || 'applied') ||
+    notes !== (entry.recruiter_notes || '') ||
+    interviewDate !== (entry.interview_date ? entry.interview_date.slice(0, 16) : '') ||
+    meetingLink !== (entry.meeting_link || '') ||
+    instructions !== (entry.interview_instructions || '');
+
+  const handleSave = async () => {
+    if (!entry.ranking_id) return;
     setSaving(true);
-    await onSaveNotes(entry, notes);
+    await onUpdate(entry.ranking_id, {
+      application_status: status,
+      recruiter_notes: notes,
+      interview_date: interviewDate ? new Date(interviewDate).toISOString() : null,
+      meeting_link: meetingLink,
+      interview_instructions: instructions,
+      shortlisted: status === 'shortlisted' || status === 'interview_scheduled' || status === 'accepted',
+    });
     setSaving(false);
   };
+
+  const inputClass = "w-full px-3 py-2 text-sm rounded-lg border outline-none focus:ring-2 focus:ring-violet-500/30 transition-all";
+  const inputStyle = { backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' };
 
   return (
     <motion.div
@@ -89,7 +140,7 @@ function CandidateDetail({
     >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <motion.div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl"
+        className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
         initial={{ scale: 0.95, y: 20 }}
         animate={{ scale: 1, y: 0 }}
@@ -112,20 +163,7 @@ function CandidateDetail({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => onToggleShortlist(entry)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                entry.shortlisted
-                  ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                  : 'hover:bg-amber-500/10 hover:text-amber-500 hover:border-amber-500/30'
-              }`}
-              style={{ borderColor: entry.shortlisted ? undefined : 'var(--border-color)', color: entry.shortlisted ? undefined : 'var(--text-secondary)' }}
-            >
-              {entry.shortlisted
-                ? <Star className="w-3.5 h-3.5 fill-amber-500" />
-                : <Star className="w-3.5 h-3.5" />}
-              {entry.shortlisted ? 'Shortlisted' : 'Shortlist'}
-            </button>
+            <StatusBadge status={entry.application_status || 'applied'} />
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-500/10 transition-colors">
               <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
             </button>
@@ -222,26 +260,108 @@ function CandidateDetail({
             </div>
           )}
 
-          {/* Recruiter notes */}
-          <div className="card p-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <MessageSquare className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-              <h4 className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Recruiter Notes</h4>
+          {/* ── Recruiter Controls ── */}
+          <div className="card p-4 space-y-4 border-2 border-violet-500/20">
+            <h4 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+              <ClipboardList className="w-3.5 h-3.5 text-violet-500" />
+              Recruiter Actions
+            </h4>
+
+            {/* Status */}
+            <div>
+              <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                Application Status
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {APPLICATION_STATUS_ORDER.map(s => {
+                  const c = APPLICATION_STATUS_COLORS[s];
+                  const isSelected = status === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setStatus(s)}
+                      className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border transition-all ${
+                        isSelected ? `${c.bg} ${c.text} ${c.border} ring-1 ring-current` : 'hover:opacity-80'
+                      }`}
+                      style={isSelected ? {} : { borderColor: 'var(--border-color)', color: 'var(--text-muted)' }}
+                    >
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.dot}`} />
+                      {APPLICATION_STATUS_LABELS[s]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Add notes about this candidate…"
-              rows={3}
-              className="w-full text-xs rounded-lg border px-3 py-2 resize-none outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-              style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-            />
+
+            {/* Notes */}
+            <div>
+              <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-secondary)' }}>
+                Recruiter Notes
+              </label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Add notes about this candidate…"
+                rows={3}
+                className={`${inputClass} resize-none`}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Interview scheduling */}
+            {(status === 'interview_scheduled' || interviewDate) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-3 overflow-hidden"
+              >
+                <p className="text-xs font-medium text-violet-500 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" /> Interview Details
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      value={interviewDate}
+                      onChange={e => setInterviewDate(e.target.value)}
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>Meeting Link</label>
+                    <input
+                      type="url"
+                      value={meetingLink}
+                      onChange={e => setMeetingLink(e.target.value)}
+                      placeholder="https://meet.google.com/…"
+                      className={inputClass}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>Instructions for Candidate</label>
+                  <textarea
+                    value={instructions}
+                    onChange={e => setInstructions(e.target.value)}
+                    placeholder="Please prepare a 5-minute intro, bring your portfolio…"
+                    rows={2}
+                    className={`${inputClass} resize-none`}
+                    style={inputStyle}
+                  />
+                </div>
+              </motion.div>
+            )}
+
             <button
-              onClick={handleSaveNotes}
-              disabled={saving || notes === (entry.notes || '')}
-              className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-500 border border-violet-500/25 hover:bg-violet-500/20 transition-all disabled:opacity-40"
+              onClick={handleSave}
+              disabled={saving || !isDirty || !entry.ranking_id}
+              className="w-full py-2 rounded-lg text-xs font-semibold bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
             >
-              {saving ? 'Saving…' : 'Save Notes'}
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -250,10 +370,12 @@ function CandidateDetail({
   );
 }
 
+// ── Rank Badge ─────────────────────────────────────────────────────────────────
+
 function RankBadge({ rank }: { rank: number }) {
   const configs: Record<number, { bg: string; border: string; color: string }> = {
-    1: { bg: 'bg-amber-500/15', border: 'border-amber-500/40', color: 'text-amber-500' },
-    2: { bg: 'bg-slate-400/15', border: 'border-slate-400/40', color: 'text-slate-400' },
+    1: { bg: 'bg-amber-500/15',  border: 'border-amber-500/40',  color: 'text-amber-500'  },
+    2: { bg: 'bg-slate-400/15',  border: 'border-slate-400/40',  color: 'text-slate-400'  },
     3: { bg: 'bg-orange-500/15', border: 'border-orange-500/40', color: 'text-orange-500' },
   };
   const cfg = configs[rank] || { bg: 'bg-sky-500/10', border: 'border-sky-500/20', color: 'text-sky-500' };
@@ -273,11 +395,12 @@ export default function CandidateRanking() {
 
   const [job, setJob] = useState<JobDescription | null>(null);
   const [allResumes, setAllResumes] = useState<Resume[]>([]);
-  const [rankings, setRankings] = useState<RankingRow[]>([]);
+  const [rankings, setRankings] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<RankingRow | null>(null);
-  const [filter, setFilter] = useState<'all' | 'shortlisted'>('all');
+  const [selectedEntry, setSelectedEntry] = useState<RankingEntry | null>(null);
+  const [filter, setFilter] = useState<'all' | 'shortlisted' | 'interview_scheduled' | 'accepted'>('all');
+  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'score' | 'skill' | 'semantic'>('score');
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -290,12 +413,18 @@ export default function CandidateRanking() {
     fontSize: 12,
   };
 
-  const mapRow = (r: any): RankingRow => ({
+  const mapRow = (r: any): RankingEntry => ({
     ranking_id: r.ranking_id,
     rank: r.rank,
     score: r.score,
+    application_status: (r.application_status || 'applied') as ApplicationStatus,
     shortlisted: r.shortlisted || false,
     notes: r.notes || '',
+    recruiter_notes: r.recruiter_notes || '',
+    interview_date: r.interview_date || null,
+    meeting_link: r.meeting_link || '',
+    interview_instructions: r.interview_instructions || '',
+    updated_at: r.updated_at || null,
     resume_id: r.resume_id,
     candidate_name: r.candidate_name,
     candidate_email: r.candidate_email,
@@ -346,45 +475,66 @@ export default function CandidateRanking() {
     }
   };
 
-  const handleToggleShortlist = async (entry: RankingRow) => {
+  const handleUpdate = async (rankingId: number, patch: Partial<RankingEntry>) => {
+    try {
+      await rankingApi.updateEntry(rankingId, {
+        shortlisted: patch.shortlisted,
+        notes: patch.recruiter_notes,
+        application_status: patch.application_status,
+        interview_date: patch.interview_date ?? undefined,
+        meeting_link: patch.meeting_link,
+        interview_instructions: patch.interview_instructions,
+      });
+      setRankings(prev => prev.map(r => r.ranking_id === rankingId ? { ...r, ...patch } : r));
+      if (selectedEntry?.ranking_id === rankingId) {
+        setSelectedEntry(prev => prev ? { ...prev, ...patch } : null);
+      }
+      toast.success('Updated');
+    } catch {
+      toast.error('Failed to save changes');
+    }
+  };
+
+  const handleQuickStatusChange = async (entry: RankingEntry, newStatus: ApplicationStatus) => {
+    if (!entry.ranking_id) return;
+    const newShortlisted = ['shortlisted', 'interview_scheduled', 'accepted'].includes(newStatus);
+    await handleUpdate(entry.ranking_id, {
+      application_status: newStatus,
+      shortlisted: newShortlisted,
+    });
+  };
+
+  const handleToggleShortlist = async (entry: RankingEntry) => {
     if (!entry.ranking_id) {
       toast.error('Save rankings first before shortlisting');
       return;
     }
-    const newState = !entry.shortlisted;
-    setRankings(prev => prev.map(r => r.resume_id === entry.resume_id ? { ...r, shortlisted: newState } : r));
-    if (selectedEntry?.resume_id === entry.resume_id) {
-      setSelectedEntry(prev => prev ? { ...prev, shortlisted: newState } : null);
-    }
-    try {
-      await rankingApi.updateEntry(entry.ranking_id, { shortlisted: newState });
-      toast.success(newState ? 'Added to shortlist' : 'Removed from shortlist');
-    } catch {
-      setRankings(prev => prev.map(r => r.resume_id === entry.resume_id ? { ...r, shortlisted: !newState } : r));
-      toast.error('Failed to update shortlist');
-    }
-  };
-
-  const handleSaveNotes = async (entry: RankingRow, notes: string) => {
-    if (!entry.ranking_id) return;
-    try {
-      await rankingApi.updateEntry(entry.ranking_id, { notes });
-      setRankings(prev => prev.map(r => r.resume_id === entry.resume_id ? { ...r, notes } : r));
-      toast.success('Notes saved');
-    } catch {
-      toast.error('Failed to save notes');
-    }
+    const newShortlisted = !entry.shortlisted;
+    const newStatus: ApplicationStatus = newShortlisted ? 'shortlisted' : 'applied';
+    await handleUpdate(entry.ranking_id, { shortlisted: newShortlisted, application_status: newStatus });
   };
 
   const shortlistedCount = rankings.filter(r => r.shortlisted).length;
+  const interviewCount = rankings.filter(r => r.application_status === 'interview_scheduled').length;
+  const acceptedCount = rankings.filter(r => r.application_status === 'accepted').length;
+  const rejectedCount = rankings.filter(r => r.application_status === 'rejected').length;
 
   const filteredRankings = useMemo(() => {
-    let list = filter === 'shortlisted' ? rankings.filter(r => r.shortlisted) : [...rankings];
+    let list = [...rankings];
+    if (statusFilter !== 'all') {
+      list = list.filter(r => r.application_status === statusFilter);
+    } else if (filter === 'shortlisted') {
+      list = list.filter(r => r.shortlisted);
+    } else if (filter === 'interview_scheduled') {
+      list = list.filter(r => r.application_status === 'interview_scheduled');
+    } else if (filter === 'accepted') {
+      list = list.filter(r => r.application_status === 'accepted');
+    }
     if (sortBy === 'skill') list.sort((a, b) => (b.skill_match_score || 0) - (a.skill_match_score || 0));
     else if (sortBy === 'semantic') list.sort((a, b) => (b.semantic_similarity || 0) - (a.semantic_similarity || 0));
     else list.sort((a, b) => (b.score || 0) - (a.score || 0));
     return list;
-  }, [rankings, filter, sortBy]);
+  }, [rankings, filter, statusFilter, sortBy]);
 
   const chartData = rankings
     .slice()
@@ -393,7 +543,7 @@ export default function CandidateRanking() {
     .map(r => ({
       name: (r.candidate_name || `#${r.rank}`).split(' ')[0],
       score: parseFloat((r.score || 0).toFixed(1)),
-      shortlisted: r.shortlisted,
+      status: r.application_status,
     }));
 
   if (loading) {
@@ -431,12 +581,11 @@ export default function CandidateRanking() {
             </div>
             {job?.company && (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {job.company}
-                {job.location && <span className="ml-2">· {job.location}</span>}
+                {job.company}{job.location && <span className="ml-2">· {job.location}</span>}
               </p>
             )}
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              {allResumes.length} in pool · {rankings.length} ranked · {shortlistedCount} shortlisted
+              {allResumes.length} in pool · {rankings.length} ranked · {shortlistedCount} shortlisted · {interviewCount} interviewing · {acceptedCount} accepted
             </p>
           </div>
           <button
@@ -472,6 +621,24 @@ export default function CandidateRanking() {
           </div>
         ) : (
           <>
+            {/* Hiring Funnel Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              {[
+                { label: 'Shortlisted',  value: shortlistedCount, color: 'text-amber-500',   bg: 'bg-amber-500/10',   icon: Star         },
+                { label: 'Interviewing', value: interviewCount,   color: 'text-violet-500',  bg: 'bg-violet-500/10',  icon: Calendar     },
+                { label: 'Accepted',     value: acceptedCount,    color: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
+                { label: 'Rejected',     value: rejectedCount,    color: 'text-red-400',     bg: 'bg-red-500/10',     icon: XCircle      },
+              ].map(({ label, value, color, bg, icon: Icon }) => (
+                <div key={label} className={`card p-4 flex items-center gap-3 ${bg}`}>
+                  <Icon className={`w-5 h-5 flex-shrink-0 ${color}`} />
+                  <div>
+                    <p className={`text-xl font-bold ${color}`}>{value}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Charts */}
             <div className="grid md:grid-cols-2 gap-5 mb-6">
               {/* Score distribution */}
@@ -486,9 +653,13 @@ export default function CandidateRanking() {
                     <YAxis domain={[0, 100]} tick={{ fill: tickColor, fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [`${v}%`, 'Score']} />
                     <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                      {chartData.map((d, i) => (
-                        <Cell key={i} fill={d.shortlisted ? '#f59e0b' : i === 0 ? '#8b5cf6' : i === 1 ? '#0ea5e9' : '#10b981'} />
-                      ))}
+                      {chartData.map((d, i) => {
+                        const statusColors: Record<string, string> = {
+                          accepted: '#10b981', shortlisted: '#f59e0b',
+                          interview_scheduled: '#8b5cf6', rejected: '#ef4444',
+                        };
+                        return <Cell key={i} fill={statusColors[d.status] || (i === 0 ? '#8b5cf6' : '#0ea5e9')} />;
+                      })}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -517,9 +688,12 @@ export default function CandidateRanking() {
                           {i + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                            {r.candidate_name || `Candidate ${r.rank}`}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                              {r.candidate_name || `Candidate ${r.rank}`}
+                            </p>
+                            <StatusBadge status={r.application_status || 'applied'} />
+                          </div>
                           <div className="h-1 rounded-full mt-1 overflow-hidden" style={{ backgroundColor: 'var(--border-color)' }}>
                             <div className="h-full rounded-full transition-all" style={{ width: `${r.score}%`, backgroundColor: c }} />
                           </div>
@@ -527,29 +701,26 @@ export default function CandidateRanking() {
                         <p className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-primary)' }}>
                           {r.score?.toFixed(1)}%
                         </p>
-                        {r.shortlisted && <Star className="w-3 h-3 text-amber-500 fill-amber-500 flex-shrink-0" />}
                       </div>
                     );
                   })}
                 </div>
-                {shortlistedCount > 0 && (
-                  <div className="mt-4 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      <Star className="w-3 h-3 text-amber-500 inline mr-1" />
-                      {shortlistedCount} candidate{shortlistedCount !== 1 ? 's' : ''} shortlisted
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* Filter + Sort bar */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                {(['all', 'shortlisted'] as const).map(f => (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                {([
+                  ['all', `All (${rankings.length})`],
+                  ['shortlisted', `Shortlisted (${shortlistedCount})`],
+                  ['interview_scheduled', `Interviewing (${interviewCount})`],
+                  ['accepted', `Accepted (${acceptedCount})`],
+                ] as const).map(([f, label]) => (
                   <button
                     key={f}
-                    onClick={() => setFilter(f)}
+                    onClick={() => setFilter(f as typeof filter)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                       filter === f
                         ? 'bg-violet-500/15 text-violet-500 border-violet-500/30'
@@ -557,7 +728,7 @@ export default function CandidateRanking() {
                     }`}
                     style={{ borderColor: filter === f ? undefined : 'var(--border-color)', color: filter === f ? undefined : 'var(--text-secondary)' }}
                   >
-                    {f === 'all' ? `All (${rankings.length})` : `Shortlisted (${shortlistedCount})`}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -591,7 +762,7 @@ export default function CandidateRanking() {
 
               {filteredRankings.length === 0 ? (
                 <div className="p-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-                  No shortlisted candidates yet. Click the ★ icon to shortlist.
+                  No candidates match this filter.
                 </div>
               ) : (
                 <div className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
@@ -610,27 +781,30 @@ export default function CandidateRanking() {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                              <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
                                 {r.candidate_name || `Candidate #${r.rank}`}
                               </p>
-                              {r.shortlisted && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />}
-                              {r.notes && <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />}
+                              <StatusBadge status={r.application_status || 'applied'} />
+                              {r.interview_date && (
+                                <span className="flex items-center gap-1 text-xs text-violet-500">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(r.interview_date).toLocaleDateString()}
+                                </span>
+                              )}
+                              {r.recruiter_notes && (
+                                <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                 {r.experience_years?.toFixed(0) || 0}y exp
                               </span>
-                              <button
-                                onClick={() => handleToggleShortlist(r)}
-                                className={`p-1 rounded transition-all hover:scale-110 ${r.shortlisted ? 'text-amber-500' : ''}`}
-                                style={{ color: r.shortlisted ? undefined : 'var(--text-muted)' }}
-                                title={r.shortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
-                              >
-                                {r.shortlisted
-                                  ? <Star className="w-3.5 h-3.5 fill-amber-500" />
-                                  : <Star className="w-3.5 h-3.5" />}
-                              </button>
+                              {/* Quick status change */}
+                              <StatusDropdown
+                                current={r.application_status || 'applied'}
+                                onChange={s => handleQuickStatusChange(r, s)}
+                              />
                               <button
                                 onClick={() => setExpandedId(expandedId === r.resume_id ? null : r.resume_id)}
                                 className="p-1 rounded transition-all"
@@ -640,9 +814,9 @@ export default function CandidateRanking() {
                               </button>
                               <button
                                 onClick={() => setSelectedEntry(r)}
-                                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-500 border border-violet-500/20 hover:bg-violet-500/20 transition-all"
+                                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-500 border border-violet-500/20 hover:bg-violet-500/20 transition-all flex items-center gap-1"
                               >
-                                View
+                                <Eye className="w-3 h-3" /> View
                               </button>
                             </div>
                           </div>
@@ -650,9 +824,9 @@ export default function CandidateRanking() {
                           {/* Mini score bars */}
                           <div className="grid grid-cols-3 gap-2 mb-2">
                             {[
-                              { label: 'Skills', value: r.skill_match_score, color: '#8b5cf6' },
+                              { label: 'Skills',   value: r.skill_match_score,  color: '#8b5cf6' },
                               { label: 'Semantic', value: r.semantic_similarity, color: '#0ea5e9' },
-                              { label: 'Overall', value: r.score, color: '#10b981' },
+                              { label: 'Overall',  value: r.score,              color: '#10b981' },
                             ].map(({ label, value, color }) => (
                               <div key={label}>
                                 <div className="flex justify-between text-[10px] mb-0.5">
@@ -674,16 +848,30 @@ export default function CandidateRanking() {
 
                           {/* Expanded notes */}
                           <AnimatePresence>
-                            {expandedId === r.resume_id && r.notes && (
+                            {expandedId === r.resume_id && (
                               <motion.div
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                className="mt-2 overflow-hidden"
+                                className="mt-2 overflow-hidden space-y-2"
                               >
-                                <div className="p-2 rounded-lg text-xs italic" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
-                                  "{r.notes}"
-                                </div>
+                                {r.recruiter_notes && (
+                                  <div className="p-2 rounded-lg text-xs italic" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+                                    <MessageSquare className="w-3 h-3 inline mr-1.5" style={{ color: 'var(--text-muted)' }} />
+                                    "{r.recruiter_notes}"
+                                  </div>
+                                )}
+                                {r.interview_date && (
+                                  <div className="flex items-center gap-2 text-xs text-violet-500 px-2">
+                                    <Calendar className="w-3 h-3" />
+                                    Interview: {new Date(r.interview_date).toLocaleString()}
+                                    {r.meeting_link && (
+                                      <a href={r.meeting_link} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:underline ml-2">
+                                        <Link2 className="w-3 h-3" /> Join
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -708,8 +896,7 @@ export default function CandidateRanking() {
           <CandidateDetail
             entry={selectedEntry}
             onClose={() => setSelectedEntry(null)}
-            onToggleShortlist={handleToggleShortlist}
-            onSaveNotes={handleSaveNotes}
+            onUpdate={handleUpdate}
           />
         )}
       </AnimatePresence>

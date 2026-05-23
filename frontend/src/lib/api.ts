@@ -9,6 +9,7 @@ const API_BASE = import.meta.env.VITE_API_URL
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
+  timeout: 30000, // 30 s — generous for AI endpoints that call Gemini
 });
 
 // ── Request interceptor — attach access token ──────────────────────────────
@@ -145,8 +146,15 @@ export const rankingApi = {
   rank: (jobId: number, resumeIds: number[]) =>
     api.post(`/rankings/rank/${jobId}`, resumeIds),
   getForJob: (jobId: number) => api.get(`/rankings/job/${jobId}`),
-  updateEntry: (rankingId: number, data: { shortlisted?: boolean; notes?: string }) =>
-    api.patch(`/rankings/${rankingId}`, data),
+  myApplications: () => api.get('/rankings/my-applications'),
+  updateEntry: (rankingId: number, data: {
+    shortlisted?: boolean;
+    notes?: string;
+    application_status?: string;
+    interview_date?: string | null;
+    meeting_link?: string;
+    interview_instructions?: string;
+  }) => api.patch(`/rankings/${rankingId}`, data),
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

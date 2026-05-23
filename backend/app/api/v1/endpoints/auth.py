@@ -17,7 +17,7 @@ from app.core.security import (
 )
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.user import Token, TokenPair, TokenRefresh, UserCreate, UserResponse
+from app.schemas.user import ChangePasswordRequest, Token, TokenPair, TokenRefresh, UserCreate, UserResponse
 
 router = APIRouter()
 
@@ -137,6 +137,26 @@ async def refresh_tokens(request: Request, body: TokenRefresh, db: Session = Dep
 async def logout(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     """Revoke the refresh token so it cannot be used again after logout."""
     current_user.refresh_token_hash = None
+    db.add(current_user)
+    db.commit()
+
+
+# ── POST /change-password ──────────────────────────────────────────────────────
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+async def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    current_user.hashed_password = get_password_hash(body.new_password)
     db.add(current_user)
     db.commit()
 

@@ -114,6 +114,48 @@ export interface ChatMessage {
   content: string;
 }
 
+// ── Application Tracking ──────────────────────────────────────────────────────
+
+export type ApplicationStatus =
+  | 'applied'
+  | 'under_review'
+  | 'shortlisted'
+  | 'interview_scheduled'
+  | 'rejected'
+  | 'accepted';
+
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  applied: 'Applied',
+  under_review: 'Under Review',
+  shortlisted: 'Shortlisted',
+  interview_scheduled: 'Interview Scheduled',
+  rejected: 'Rejected',
+  accepted: 'Accepted',
+};
+
+export const APPLICATION_STATUS_COLORS: Record<ApplicationStatus, {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+}> = {
+  applied:              { bg: 'bg-slate-500/10',   text: 'text-slate-400',   border: 'border-slate-500/25',  dot: 'bg-slate-400'   },
+  under_review:         { bg: 'bg-sky-500/10',     text: 'text-sky-500',     border: 'border-sky-500/25',    dot: 'bg-sky-500'     },
+  shortlisted:          { bg: 'bg-amber-500/10',   text: 'text-amber-500',   border: 'border-amber-500/25',  dot: 'bg-amber-500'   },
+  interview_scheduled:  { bg: 'bg-violet-500/10',  text: 'text-violet-500',  border: 'border-violet-500/25', dot: 'bg-violet-500'  },
+  rejected:             { bg: 'bg-red-500/10',     text: 'text-red-400',     border: 'border-red-500/25',    dot: 'bg-red-400'     },
+  accepted:             { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/25',dot: 'bg-emerald-500' },
+};
+
+export const APPLICATION_STATUS_ORDER: ApplicationStatus[] = [
+  'applied',
+  'under_review',
+  'shortlisted',
+  'interview_scheduled',
+  'accepted',
+  'rejected',
+];
+
 export interface RankingEntry {
   ranking_id?: number;
   rank: number;
@@ -128,6 +170,33 @@ export interface RankingEntry {
   missing_skills: string[];
   skill_match_score: number;
   semantic_similarity: number;
-  shortlisted?: boolean;
-  notes?: string;
+  interview_questions: string[];
+  shortlisted: boolean;
+  notes: string;
+  application_status: ApplicationStatus;
+  recruiter_notes: string;
+  interview_date: string | null;
+  meeting_link: string;
+  interview_instructions: string;
+  updated_at: string | null;
+}
+
+export interface MyApplication {
+  ranking_id: number;
+  job_id: number;
+  job_title: string;
+  company: string | null;
+  location: string | null;
+  resume_id: number;
+  resume_name: string | null;
+  rank: number;
+  score: number;
+  application_status: ApplicationStatus;
+  shortlisted: boolean;
+  recruiter_notes: string;
+  interview_date: string | null;
+  meeting_link: string;
+  interview_instructions: string;
+  applied_at: string;
+  updated_at: string | null;
 }

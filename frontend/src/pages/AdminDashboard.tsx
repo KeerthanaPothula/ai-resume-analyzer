@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Users, FileText, Briefcase, BarChart3, Shield, Activity,
-  TrendingUp, Award,
+  Award, AlertTriangle,
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -10,6 +10,8 @@ import {
 } from 'recharts';
 import Layout from '../components/layout/Layout';
 import StatsCard from '../components/ui/StatsCard';
+import EmptyState from '../components/ui/EmptyState';
+import { SkeletonStatsRow, SkeletonCard } from '../components/ui/Skeleton';
 import { resumeApi, jobApi } from '../lib/api';
 import { useThemeStore } from '../stores/themeStore';
 import api from '../lib/api';
@@ -28,22 +30,23 @@ const ROLE_COLORS = { candidate: '#0ea5e9', recruiter: '#8b5cf6', admin: '#22c55
 export default function AdminDashboard() {
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
-  const [users, setUsers]     = useState<UserRow[]>([]);
-  const [resumes, setResumes] = useState<any[]>([]);
-  const [jobs, setJobs]       = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
-      api.get('/users/').catch(() => ({ data: [] })),
-      resumeApi.list().catch(() => ({ data: [] })),
-      jobApi.list().catch(() => ({ data: [] })),
-    ]).then(([u, r, j]) => {
-      setUsers(u.data);
-      setResumes(r.data);
-      setJobs(j.data);
-    }).finally(() => setLoading(false));
-  }, []);
+  const { data: users = [], isLoading: usersLoading, error: usersError } = useQuery<UserRow[]>({
+    queryKey: ['admin', 'users'],
+    queryFn: () => api.get('/users/').then((r) => r.data),
+  });
+
+  const { data: resumes = [], isLoading: resumesLoading } = useQuery<any[]>({
+    queryKey: ['admin', 'resumes'],
+    queryFn: () => resumeApi.list().then((r) => r.data),
+  });
+
+  const { data: jobs = [], isLoading: jobsLoading } = useQuery<any[]>({
+    queryKey: ['admin', 'jobs'],
+    queryFn: () => jobApi.list().then((r) => r.data),
+  });
+
+  const isLoading = usersLoading || resumesLoading || jobsLoading;
 
   const roleData = [
     { name: 'Candidates', value: users.filter(u => u.role === 'candidate').length, color: ROLE_COLORS.candidate },
@@ -71,6 +74,20 @@ export default function AdminDashboard() {
   const tickColor = isDark ? '#94a3b8' : '#475569';
   const gridColor = isDark ? '#1e293b' : '#f1f5f9';
 
+  if (usersError) {
+    return (
+      <Layout title="Admin Dashboard">
+        <div className="p-6 max-w-xl mx-auto">
+          <EmptyState
+            icon={AlertTriangle}
+            title="Access denied"
+            description="You need admin privileges to view this dashboard."
+          />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title="Admin Dashboard">
       <div className="p-5 md:p-7 max-w-7xl mx-auto space-y-6 animate-fade-in">
@@ -97,18 +114,16 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard title="Total Users"    value={users.length}   icon={Users}     color="sky"    delay={0}    />
-          <StatsCard title="Total Resumes"  value={resumes.length} icon={FileText}  color="violet" delay={0.05} />
-          <StatsCard title="Job Postings"   value={jobs.length}    icon={Briefcase} color="emerald" delay={0.1} />
-          <StatsCard
-            title="Avg ATS Score"
-            value={`${avgScore}%`}
-            icon={BarChart3}
-            color="amber"
-            delay={0.15}
-          />
-        </div>
+        {isLoading ? (
+          <SkeletonStatsRow />
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatsCard title="Total Users"    value={users.length}   icon={Users}     color="sky"     delay={0}    />
+            <StatsCard title="Total Resumes"  value={resumes.length} icon={FileText}  color="violet"  delay={0.05} />
+            <StatsCard title="Job Postings"   value={jobs.length}    icon={Briefcase} color="emerald" delay={0.1}  />
+            <StatsCard title="Avg ATS Score"  value={`${avgScore}%`} icon={BarChart3} color="amber"   delay={0.15} />
+          </div>
+        )}
 
         {/* Charts */}
         <div className="grid md:grid-cols-2 gap-6">
@@ -118,7 +133,9 @@ export default function AdminDashboard() {
             <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-primary)' }}>
               Users by Role
             </h3>
-            {roleData.length > 0 ? (
+            {isLoading ? (
+              <div className="h-40"><SkeletonCard lines={1} /></div>
+            ) : roleData.length > 0 ? (
               <div className="flex items-center gap-6">
                 <ResponsiveContainer width="55%" height={160}>
                   <PieChart>
@@ -158,7 +175,9 @@ export default function AdminDashboard() {
             <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-primary)' }}>
               Resume ATS Score Trend
             </h3>
-            {scoreData.length > 0 ? (
+            {isLoading ? (
+              <div className="h-40"><SkeletonCard lines={1} /></div>
+            ) : scoreData.length > 0 ? (
               <ResponsiveContainer width="100%" height={160}>
                 <AreaChart data={scoreData}>
                   <defs>
@@ -193,7 +212,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Activity summary */}
-        {!loading && (
+        {!isLoading && (
           <div className="grid grid-cols-3 gap-4">
             {[
               {
@@ -212,13 +231,13 @@ export default function AdminDashboard() {
               },
               {
                 label: 'Top ATS Score',
-                value: resumes.length ? `${Math.max(...resumes.map(r => r.ats_score ?? 0)).toFixed(0)}%` : '—',
+                value: resumes.length ? `${Math.max(...resumes.map((r: any) => r.ats_score ?? 0)).toFixed(0)}%` : '—',
                 icon: Award,
                 color: 'text-emerald-500',
                 bg: 'bg-emerald-500/10',
               },
             ].map(({ label, value, icon: Icon, color, bg }) => (
-              <div key={label} className={`card p-4 flex items-center gap-3`}>
+              <div key={label} className="card p-4 flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
                   <Icon className={`w-4 h-4 ${color}`} />
                 </div>
@@ -244,13 +263,13 @@ export default function AdminDashboard() {
               className="text-xs font-medium px-2 py-0.5 rounded-full"
               style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-muted)' }}
             >
-              {users.length} total
+              {isLoading ? '…' : `${users.length} total`}
             </span>
           </div>
 
-          {loading ? (
-            <div className="p-8 flex justify-center">
-              <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+          {isLoading ? (
+            <div className="p-6">
+              <SkeletonCard lines={4} />
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -276,9 +295,7 @@ export default function AdminDashboard() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.03 }}
                       className="transition-colors"
-                      style={{
-                        borderBottom: `1px solid var(--border-color)`,
-                      }}
+                      style={{ borderBottom: `1px solid var(--border-color)` }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)')}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >

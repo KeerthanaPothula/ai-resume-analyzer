@@ -6,7 +6,7 @@ import {
   Briefcase, Plus, Users, BarChart3, Trash2, ChevronRight,
   MapPin, Clock, Search, Star, Target, TrendingUp, Edit2,
   X, Save, GraduationCap, Filter, ChevronDown,
-  UserCheck, Zap, Eye, Award,
+  UserCheck, Zap, Eye, Award, Calendar,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -40,6 +40,9 @@ interface RecruiterData {
   total_jobs: number;
   total_candidates: number;
   jobs_this_month: number;
+  shortlisted_total: number;
+  upcoming_interviews: number;
+  hiring_funnel: Record<string, number>;
   jobs: JobRow[];
 }
 
@@ -637,10 +640,12 @@ export default function RecruiterDashboard() {
         {isLoading ? (
           <SkeletonStatsRow />
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <StatsCard title="Active Jobs"       value={data!.total_jobs}       icon={Briefcase}  color="violet"  delay={0}    />
-            <StatsCard title="Candidate Pool"    value={data!.total_candidates} icon={Users}      color="sky"     delay={0.05} />
-            <StatsCard title="Jobs This Month"   value={data!.jobs_this_month}  icon={TrendingUp} color="emerald" delay={0.1}  />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <StatsCard title="Active Jobs"      value={data!.total_jobs}          icon={Briefcase}  color="violet"  delay={0}    />
+            <StatsCard title="Candidate Pool"   value={data!.total_candidates}    icon={Users}      color="sky"     delay={0.05} />
+            <StatsCard title="Jobs This Month"  value={data!.jobs_this_month}     icon={TrendingUp} color="emerald" delay={0.1}  />
+            <StatsCard title="Shortlisted"      value={data!.shortlisted_total ?? 0}  icon={Star}   color="amber"   delay={0.15} />
+            <StatsCard title="Interviews"       value={data!.upcoming_interviews ?? 0} icon={Award} color="sky"    delay={0.2}  />
           </div>
         )}
 
