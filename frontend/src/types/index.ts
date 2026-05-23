@@ -96,6 +96,24 @@ export interface LLMStatus {
   provider: string;
 }
 
+export interface QuickMatchResult {
+  provider: string;
+  match_score: number;
+  match_analysis: string;
+  matched_skills: string[];
+  missing_skills: string[];
+  strengths: string[];
+  growth_areas: string[];
+  interview_questions: string[];
+  ats_tips: string[];
+  recommendation: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface RankingEntry {
   rank: number;
   score: number;

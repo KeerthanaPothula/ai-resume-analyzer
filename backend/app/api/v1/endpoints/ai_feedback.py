@@ -14,6 +14,10 @@ from app.schemas.ai_feedback import (
     LLMStatusResponse,
     ResumeFeedbackResponse,
     JobMatchFeedbackResponse,
+    QuickMatchRequest,
+    QuickMatchResponse,
+    ChatRequest,
+    ChatResponse,
 )
 from app.core.security import get_current_active_user
 from app.services.ai.llm_service import LLMService, get_llm_service
@@ -130,3 +134,76 @@ async def generate_job_match_feedback(
         provider = "template"
 
     return JobMatchFeedbackResponse(provider=provider, **feedback.dict())
+
+
+@router.post("/quick-match", response_model=QuickMatchResponse)
+async def quick_job_match(
+    body: QuickMatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Match a resume against a pasted job description without needing a saved job.
+    Candidates can paste any JD text and get an instant AI analysis.
+    """
+    resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    if resume.user_id != current_user.id and current_user.role.value not in ("admin", "recruiter"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    svc = get_llm_service()
+    try:
+        result = await svc.quick_job_match(
+            raw_text=resume.raw_text or "",
+            job_title=body.job_title,
+            job_description=body.job_description,
+        )
+        provider = svc.provider if svc.is_available else "template"
+    except Exception:
+        logger.exception("Unhandled error in quick_job_match; using template")
+        result = LLMService._template_quick_match(body.job_title)
+        provider = "template"
+
+    return QuickMatchResponse(provider=provider, **result)
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def career_chat(
+    body: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    AI career coaching chat. Optionally pass resume_id for context-aware advice.
+    """
+    resume_context = ""
+    if body.resume_id:
+        resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
+        if resume and (resume.user_id == current_user.id or current_user.role.value in ("admin", "recruiter")):
+            parts = []
+            if resume.candidate_name:
+                parts.append(f"Candidate: {resume.candidate_name}")
+            if resume.experience_years:
+                parts.append(f"Experience: {resume.experience_years:.0f} years")
+            if resume.education_level:
+                parts.append(f"Education: {resume.education_level}")
+            if resume.extracted_skills:
+                parts.append(f"Skills: {', '.join(resume.extracted_skills[:20])}")
+            if resume.ats_score:
+                parts.append(f"ATS Score: {resume.ats_score:.0f}/100")
+            resume_context = "\n".join(parts)
+
+    svc = get_llm_service()
+    try:
+        reply = await svc.career_chat(
+            message=body.message,
+            resume_context=resume_context,
+        )
+        provider = svc.provider if svc.is_available else "template"
+    except Exception:
+        logger.exception("Unhandled error in career_chat; using template")
+        reply = LLMService._template_chat_reply(body.message)
+        provider = "template"
+
+    return ChatResponse(reply=reply, provider=provider)

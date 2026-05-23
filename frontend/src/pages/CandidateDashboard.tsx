@@ -444,6 +444,12 @@ export default function CandidateDashboard() {
                       : "/upload",
                   desc: "See AI insights",
                 },
+                {
+                  label: "Job Match Analyzer",
+                  icon: Clock,
+                  path: "/job-match",
+                  desc: "Paste any job description",
+                },
               ].map(({ label, icon: Icon, path, desc }) => (
                 <Link
                   key={label}

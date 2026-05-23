@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Upload, FileText, Briefcase, BarChart3,
   Settings, LogOut, Brain, Users, ChevronRight, Star,
-  Sun, Moon, Menu, X, Bell, Search, UserCircle,
+  Sun, Moon, Menu, X, Bell, UserCircle, Target,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useAuth } from "../../hooks/useAuth";
@@ -25,6 +25,7 @@ const NAV: NavItem[] = [
   { label: "Dashboard",    path: "/admin",      icon: LayoutDashboard, roles: ["admin"] },
   { label: "Upload Resume",path: "/upload",     icon: Upload,          roles: ["candidate"] },
   { label: "My Resumes",   path: "/candidate",  icon: FileText,        roles: ["candidate"] },
+  { label: "Job Match",    path: "/job-match",  icon: Target,          roles: ["candidate"] },
   { label: "Post a Job",   path: "/jobs/create",icon: Briefcase,       roles: ["recruiter", "admin"] },
   { label: "Candidates",   path: "/recruiter",  icon: Users,           roles: ["recruiter", "admin"] },
   { label: "Rankings",     path: "/recruiter",  icon: Star,            roles: ["recruiter", "admin"] },

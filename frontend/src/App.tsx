@@ -15,6 +15,8 @@ import CandidateRanking from "./pages/CandidateRanking";
 import JobCreate from "./pages/JobCreate";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
+import JobMatch from "./pages/JobMatch";
+import ChatAssistant from "./components/ChatAssistant";
 
 // Apply the persisted theme before first render
 const { theme } = useThemeStore.getState();
@@ -125,6 +127,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/job-match"
+        element={
+          <ProtectedRoute roles={["candidate", "admin"]}>
+            <JobMatch />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -136,6 +146,7 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <AppRoutes />
+          <ChatAssistant />
           <Toaster
             position="top-right"
             toastOptions={{

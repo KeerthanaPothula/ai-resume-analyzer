@@ -159,6 +159,10 @@ export const aiFeedbackApi = {
     api.post(`/ai-feedback/resume/${resumeId}`),
   jobMatchFeedback: (resumeId: number, jobId: number) =>
     api.post(`/ai-feedback/resume/${resumeId}/job/${jobId}`),
+  quickMatch: (resumeId: number, jobTitle: string, jobDescription: string) =>
+    api.post("/ai-feedback/quick-match", { resume_id: resumeId, job_title: jobTitle, job_description: jobDescription }),
+  chat: (message: string, resumeId?: number) =>
+    api.post("/ai-feedback/chat", { message, resume_id: resumeId }),
 };
 
 // ── Profile / Account ─────────────────────────────────────────────────────────

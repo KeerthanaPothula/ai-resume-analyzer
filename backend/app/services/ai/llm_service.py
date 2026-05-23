@@ -104,6 +104,41 @@ For recommendation pick exactly one of:
 
 _PING_PROMPT = '{"test": true}'
 
+_QUICK_MATCH_PROMPT = """You are an expert ATS system and career coach. Analyze how well this resume matches the job description.
+
+Resume (truncated to 2500 chars):
+{resume_text}
+
+Job Title: {job_title}
+Job Description (truncated to 2000 chars):
+{job_description}
+
+Return ONLY a JSON object with exactly these keys:
+{{
+  "match_score": <integer 0-100 representing overall fit percentage>,
+  "match_analysis": "2-3 sentence recruiter-style analysis of the fit",
+  "matched_skills": ["skill1", "skill2", "skill3"],
+  "missing_skills": ["critical_missing1", "critical_missing2", "critical_missing3"],
+  "strengths": ["specific strength from resume relevant to this role", "strength 2", "strength 3"],
+  "growth_areas": ["area to develop for this role", "area 2"],
+  "interview_questions": ["Tailored question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"],
+  "ats_tips": ["Job-specific ATS tip 1", "tip 2", "tip 3"],
+  "recommendation": "Strong match - apply now"
+}}
+
+For recommendation pick exactly one of:
+  "Strong match - apply now" | "Good match - minor gaps" |
+  "Moderate match - upskill first" | "Weak match - significant preparation needed"
+"""
+
+_CHAT_PROMPT = """You are an expert AI career coach specializing in resume optimization, ATS systems, job searching, and interview preparation. You give concise, actionable, and encouraging advice.
+
+{context}
+
+User: {message}
+
+Respond in 2-4 paragraphs. Be specific and actionable. Use a warm, professional tone. Do NOT use excessive bullet points — prefer flowing, readable prose."""
+
 
 # ── LLM Service ───────────────────────────────────────────────────────────────
 
@@ -202,6 +237,166 @@ class LLMService:
             interview_questions=list(data.get("interview_questions", [])),
             ats_tips=list(data.get("ats_tips", [])),
             recommendation=str(data.get("recommendation", "")),
+        )
+
+    async def quick_job_match(
+        self,
+        raw_text: str,
+        job_title: str,
+        job_description: str,
+    ) -> Dict[str, Any]:
+        """Match a resume against a pasted job description without needing a saved job."""
+        prompt = _QUICK_MATCH_PROMPT.format(
+            resume_text=raw_text[:2500],
+            job_title=job_title,
+            job_description=job_description[:2000],
+        )
+
+        data = await self._call_llm(prompt)
+        if not data:
+            return self._template_quick_match(job_title)
+
+        return {
+            "match_score": float(data.get("match_score", 0)),
+            "match_analysis": str(data.get("match_analysis", "")),
+            "matched_skills": list(data.get("matched_skills", [])),
+            "missing_skills": list(data.get("missing_skills", [])),
+            "strengths": list(data.get("strengths", [])),
+            "growth_areas": list(data.get("growth_areas", [])),
+            "interview_questions": list(data.get("interview_questions", [])),
+            "ats_tips": list(data.get("ats_tips", [])),
+            "recommendation": str(data.get("recommendation", "Moderate match - upskill first")),
+        }
+
+    async def career_chat(
+        self,
+        message: str,
+        resume_context: str = "",
+    ) -> str:
+        """Single-turn career coaching chat."""
+        context = f"Resume context:\n{resume_context[:1500]}\n" if resume_context else ""
+        prompt = _CHAT_PROMPT.format(context=context, message=message)
+
+        if not self.is_available:
+            return self._template_chat_reply(message)
+
+        data = await self._call_llm(prompt)
+        if data is None:
+            return self._template_chat_reply(message)
+
+        # Chat prompt returns prose, not JSON — _call_llm would fail to parse it.
+        # So we call raw and handle separately.
+        return await self._call_llm_text(prompt)
+
+    async def _call_llm_text(self, prompt: str) -> str:
+        """Like _call_llm but returns the raw text instead of parsed JSON."""
+        try:
+            if self.provider == "gemini" and settings.GEMINI_API_KEY:
+                return await self._call_gemini_text(prompt)
+            if self.provider == "openai" and settings.OPENAI_API_KEY:
+                return await self._call_openai_text(prompt)
+        except Exception:
+            pass
+        return self._template_chat_reply(prompt)
+
+    async def _call_gemini_text(self, prompt: str) -> str:
+        from google import genai
+        from google.genai import types as genai_types
+
+        if self._gemini_client is None:
+            self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+        cfg = genai_types.GenerateContentConfig(
+            temperature=0.6,
+            max_output_tokens=1024,
+        )
+
+        loop = asyncio.get_running_loop()
+        response = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: self._gemini_client.models.generate_content(
+                    model=settings.GEMINI_MODEL, contents=prompt, config=cfg
+                ),
+            ),
+            timeout=25.0,
+        )
+        return (response.text or "").strip()
+
+    async def _call_openai_text(self, prompt: str) -> str:
+        from openai import AsyncOpenAI
+
+        if self._openai_client is None:
+            self._openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+        response = await self._openai_client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": "You are an expert AI career coach."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.6,
+            max_tokens=1024,
+        )
+        return response.choices[0].message.content or ""
+
+    @staticmethod
+    def _template_quick_match(job_title: str) -> Dict[str, Any]:
+        return {
+            "match_score": 55.0,
+            "match_analysis": f"Your resume shows relevant experience for a {job_title} role. Upload a more detailed resume and use the AI provider for a precise match score.",
+            "matched_skills": ["communication", "problem-solving", "teamwork"],
+            "missing_skills": ["domain-specific certifications", "portfolio projects"],
+            "strengths": ["Demonstrated experience", "Technical background", "Educational credentials"],
+            "growth_areas": ["Add quantified achievements", "Include role-specific keywords"],
+            "interview_questions": [
+                "Tell me about your most relevant project for this role.",
+                "How have you handled tight deadlines?",
+                "Describe your experience working in a team.",
+                "What motivates you to apply for this position?",
+                "Where do you see yourself in 3 years?",
+            ],
+            "ats_tips": [
+                "Mirror the job title in your resume headline",
+                "Add keywords from the job description verbatim",
+                "Quantify achievements with numbers and percentages",
+            ],
+            "recommendation": "Moderate match - upskill first",
+        }
+
+    @staticmethod
+    def _template_chat_reply(message: str) -> str:
+        message_lower = message.lower()
+        if any(w in message_lower for w in ["interview", "question", "prepare"]):
+            return (
+                "Great question about interview preparation! Start by deeply researching the company — "
+                "understand their product, mission, and recent news. Then practice the STAR method "
+                "(Situation, Task, Action, Result) for behavioral questions, which make up 60% of most interviews.\n\n"
+                "Prepare 3-5 strong stories from your experience that demonstrate leadership, problem-solving, "
+                "and collaboration. Technical roles will also have coding/system-design rounds — "
+                "practice on platforms like LeetCode or HackerRank.\n\n"
+                "Finally, prepare thoughtful questions to ask the interviewer. This shows genuine interest "
+                "and helps you evaluate if the role is a good fit."
+            )
+        if any(w in message_lower for w in ["ats", "score", "resume", "cv"]):
+            return (
+                "ATS optimization is crucial in today's hiring landscape. Most companies use ATS software "
+                "to filter resumes before a human ever sees them. The key is keyword alignment — your resume "
+                "must contain the exact terms from the job description.\n\n"
+                "Use a clean, single-column format with standard section headers (Experience, Education, Skills). "
+                "Avoid tables, graphics, and custom fonts. Save as PDF unless the application specifically "
+                "requests DOCX format.\n\n"
+                "Quantify every achievement you can: 'Improved load time by 40%' beats 'Improved performance'. "
+                "Tailor your skills section to each application — this alone can dramatically improve your match score."
+            )
+        return (
+            "That's a great career question! Here's my guidance: focus on building concrete evidence of your "
+            "skills through real projects, open-source contributions, or measurable work achievements.\n\n"
+            "Your resume should tell a compelling story — not just what you did, but the impact you made. "
+            "Use strong action verbs (architected, led, optimized, delivered) and quantify wherever possible.\n\n"
+            "Networking is also underrated: 70-80% of jobs are filled through referrals. "
+            "Connect with professionals in your target role on LinkedIn, attend meetups, and contribute to communities. "
+            "Let me know if you have a more specific question!"
         )
 
     async def ping(self) -> Dict[str, Any]:
