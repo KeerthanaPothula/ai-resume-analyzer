@@ -19,7 +19,7 @@ export default function ScoreRing({ score, size = 120, label }: ScoreRingProps) 
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#1e293b"
+            stroke="var(--border-color)"
             strokeWidth="10"
           />
           <circle
@@ -36,11 +36,11 @@ export default function ScoreRing({ score, size = 120, label }: ScoreRingProps) 
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-white">{score.toFixed(0)}</span>
-          <span className="text-xs text-slate-400">/ 100</span>
+          <span className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{score.toFixed(0)}</span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>/ 100</span>
         </div>
       </div>
-      {label && <p className="text-sm text-slate-400">{label}</p>}
+      {label && <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{label}</p>}
     </div>
   );
 }

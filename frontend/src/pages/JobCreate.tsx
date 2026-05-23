@@ -60,20 +60,23 @@ export default function JobCreate() {
       <div className="p-6 md:p-8 max-w-3xl mx-auto animate-fade-in">
         <button
           onClick={() => navigate('/recruiter')}
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm mb-6 transition-colors"
+          className="flex items-center gap-2 text-sm mb-6 transition-colors hover:opacity-70"
+          style={{ color: 'var(--text-muted)' }}
         >
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">Post a Job</h1>
-          <p className="text-slate-400 mt-1">Create a job description to start ranking candidates with AI</p>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>Post a Job</h1>
+          <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+            Create a job description to start ranking candidates with AI
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="card p-6 space-y-5">
-            <h3 className="text-white font-semibold flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-violet-400" />
+            <h3 className="font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <Briefcase className="w-5 h-5 text-violet-500" />
               Job Details
             </h3>
             <div className="grid md:grid-cols-2 gap-4">
@@ -118,7 +121,7 @@ export default function JobCreate() {
                   onChange={(e) => setForm({ ...form, experience_required: parseFloat(e.target.value) || 0 })}
                 />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="label">Education Required</label>
                 <select
                   className="input"
@@ -148,7 +151,7 @@ export default function JobCreate() {
 
           {/* Skills */}
           <div className="card p-6 space-y-4">
-            <h3 className="text-white font-semibold">Required Skills</h3>
+            <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Required Skills</h3>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -171,23 +174,32 @@ export default function JobCreate() {
                 {form.required_skills.map((skill) => (
                   <span
                     key={skill}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-500/30 text-sky-400 text-sm"
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400"
                   >
                     {skill}
-                    <button type="button" onClick={() => removeSkill(skill)} className="hover:text-white transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(skill)}
+                      className="hover:opacity-60 transition-opacity"
+                    >
                       <X className="w-3 h-3" />
                     </button>
                   </span>
                 ))}
               </div>
             ) : (
-              <p className="text-slate-500 text-sm">No skills added yet. AI will extract them from the description.</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                No skills added yet. AI will extract them from the description.
+              </p>
             )}
           </div>
 
           <div className="flex gap-3">
             <button type="submit" disabled={loading} className="btn-primary flex-1 justify-center py-3">
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Briefcase className="w-5 h-5" /> Post Job & Rank Candidates</>}
+              {loading
+                ? <Loader2 className="w-5 h-5 animate-spin" />
+                : <><Briefcase className="w-5 h-5" /> Post Job &amp; Rank Candidates</>
+              }
             </button>
             <button type="button" onClick={() => navigate('/recruiter')} className="btn-secondary px-6">
               Cancel

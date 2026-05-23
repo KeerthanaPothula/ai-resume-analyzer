@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.models.user import User
@@ -11,6 +12,11 @@ from app.services.ai.scoring_engine import calculate_ats_score, generate_intervi
 from app.services.ai.skill_extractor import generate_skill_gap_analysis
 
 router = APIRouter()
+
+
+class RankingUpdate(BaseModel):
+    shortlisted: Optional[bool] = None
+    notes: Optional[str] = None
 
 
 @router.post("/rank/{job_id}")
@@ -125,16 +131,65 @@ def get_rankings_for_job(
         .order_by(CandidateRanking.rank)
         .all()
     )
+    import json
     results = []
     for r in rankings:
         resume = db.query(Resume).filter(Resume.id == r.resume_id).first()
         ats = db.query(ATSScore).filter(
             ATSScore.resume_id == r.resume_id, ATSScore.job_id == job_id
         ).first()
+        try:
+            meta = json.loads(r.notes or "{}")
+        except Exception:
+            meta = {}
         results.append({
+            "ranking_id": r.id,
             "rank": r.rank,
             "score": r.score,
-            "resume": resume,
-            "ats_score": ats,
+            "shortlisted": meta.get("shortlisted", False),
+            "notes": meta.get("notes", ""),
+            "resume_id": resume.id if resume else None,
+            "candidate_name": resume.candidate_name if resume else None,
+            "candidate_email": resume.candidate_email if resume else None,
+            "skills": resume.extracted_skills or [] if resume else [],
+            "experience_years": resume.experience_years if resume else 0,
+            "education_level": resume.education_level if resume else None,
+            "matched_skills": ats.matched_skills or [] if ats else [],
+            "missing_skills": ats.missing_skills or [] if ats else [],
+            "skill_match_score": ats.skill_match_score or 0 if ats else 0,
+            "semantic_similarity": ats.semantic_similarity or 0 if ats else 0,
+            "interview_questions": ats.interview_questions or [] if ats else [],
         })
     return results
+
+
+@router.patch("/{ranking_id}")
+def update_ranking_entry(
+    ranking_id: int,
+    data: RankingUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Update shortlist status or notes for a ranking entry."""
+    if current_user.role not in ["recruiter", "admin"]:
+        raise HTTPException(status_code=403, detail="Only recruiters can update rankings")
+
+    ranking = db.query(CandidateRanking).filter(CandidateRanking.id == ranking_id).first()
+    if not ranking:
+        raise HTTPException(status_code=404, detail="Ranking not found")
+
+    import json
+    try:
+        meta = json.loads(ranking.notes or "{}")
+    except Exception:
+        meta = {}
+
+    if data.shortlisted is not None:
+        meta["shortlisted"] = data.shortlisted
+    if data.notes is not None:
+        meta["notes"] = data.notes
+
+    ranking.notes = json.dumps(meta)
+    db.commit()
+    db.refresh(ranking)
+    return {"id": ranking.id, "shortlisted": meta.get("shortlisted", False), "notes": meta.get("notes", "")}

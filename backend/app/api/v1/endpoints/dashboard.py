@@ -96,7 +96,7 @@ def recruiter_summary(
                 "required_skills": j.required_skills or [],
                 "experience_required": j.experience_required,
                 "created_at": j.created_at.isoformat(),
-                "description": j.description[:200] + "…" if j.description and len(j.description) > 200 else j.description,
+                "description": j.description,
             }
             for j in sorted(jobs, key=lambda j: j.created_at, reverse=True)
         ],

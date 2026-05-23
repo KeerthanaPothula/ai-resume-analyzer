@@ -70,6 +70,41 @@ def get_job(
     return job
 
 
+@router.put("/{job_id}", response_model=JobDescriptionResponse)
+def update_job(
+    job_id: int,
+    job_data: JobDescriptionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.recruiter_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    description_changed = job_data.description != job.description
+    required_skills = job_data.required_skills
+    if not required_skills and description_changed:
+        required_skills = extract_skills_from_text(job_data.description)
+
+    job.title = job_data.title
+    job.company = job_data.company
+    job.location = job_data.location
+    job.description = job_data.description
+    job.required_skills = required_skills or job.required_skills
+    job.preferred_skills = job_data.preferred_skills or []
+    job.experience_required = job_data.experience_required or 0.0
+    job.education_required = job_data.education_required
+
+    if description_changed:
+        job.embedding = generate_embedding(job_data.description)
+
+    db.commit()
+    db.refresh(job)
+    return job
+
+
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_job(
     job_id: int,

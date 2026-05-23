@@ -115,6 +115,7 @@ export interface ChatMessage {
 }
 
 export interface RankingEntry {
+  ranking_id?: number;
   rank: number;
   score: number;
   resume_id: number;
@@ -127,4 +128,6 @@ export interface RankingEntry {
   missing_skills: string[];
   skill_match_score: number;
   semantic_similarity: number;
+  shortlisted?: boolean;
+  notes?: string;
 }

@@ -126,6 +126,7 @@ export const jobApi = {
   create: (data: unknown) => api.post("/jobs/", data),
   list: () => api.get("/jobs/"),
   get: (id: number) => api.get(`/jobs/${id}`),
+  update: (id: number, data: unknown) => api.put(`/jobs/${id}`, data),
   delete: (id: number) => api.delete(`/jobs/${id}`),
 };
 
@@ -144,6 +145,8 @@ export const rankingApi = {
   rank: (jobId: number, resumeIds: number[]) =>
     api.post(`/rankings/rank/${jobId}`, resumeIds),
   getForJob: (jobId: number) => api.get(`/rankings/job/${jobId}`),
+  updateEntry: (rankingId: number, data: { shortlisted?: boolean; notes?: string }) =>
+    api.patch(`/rankings/${rankingId}`, data),
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

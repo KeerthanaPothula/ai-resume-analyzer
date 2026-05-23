@@ -134,7 +134,7 @@ def list_resumes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role.value == "admin":
+    if current_user.role.value in ("admin", "recruiter"):
         return db.query(Resume).all()
     return db.query(Resume).filter(Resume.user_id == current_user.id).all()
 

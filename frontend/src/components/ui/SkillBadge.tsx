@@ -10,9 +10,9 @@ export default function SkillBadge({ skill, variant = 'neutral' }: SkillBadgePro
     <span
       className={clsx(
         'badge capitalize',
-        variant === 'matched' && 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-        variant === 'missing' && 'bg-red-500/20 text-red-400 border border-red-500/30',
-        variant === 'neutral' && 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+        variant === 'matched' && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30',
+        variant === 'missing' && 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30',
+        variant === 'neutral' && 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-500/30'
       )}
     >
       {skill}
