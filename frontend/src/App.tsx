@@ -19,6 +19,8 @@ const JobCreate        = lazy(() => import("./pages/JobCreate"));
 const AdminDashboard   = lazy(() => import("./pages/AdminDashboard"));
 const Profile          = lazy(() => import("./pages/Profile"));
 const JobMatch         = lazy(() => import("./pages/JobMatch"));
+const Jobs             = lazy(() => import("./pages/Jobs"));
+const Notifications    = lazy(() => import("./pages/Notifications"));
 const NotFound         = lazy(() => import("./pages/NotFound"));
 
 // ChatAssistant is small and always-mounted — keep it eager
@@ -119,6 +121,14 @@ function AppRoutes() {
           <ProtectedRoute roles={["candidate", "admin"]}>
             <JobMatch />
           </ProtectedRoute>
+        } />
+
+        <Route path="/jobs" element={
+          <ProtectedRoute><Jobs /></ProtectedRoute>
+        } />
+
+        <Route path="/notifications" element={
+          <ProtectedRoute><Notifications /></ProtectedRoute>
         } />
 
         <Route path="*" element={<NotFound />} />

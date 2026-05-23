@@ -185,3 +185,17 @@ export const profileApi = {
   changePassword: (data: { current_password: string; new_password: string }) =>
     api.post("/auth/change-password", data),
 };
+
+// ── Applications (candidate self-apply) ───────────────────────────────────────
+export const applicationApi = {
+  apply: (jobId: number, resumeId: number) =>
+    api.post("/applications/apply", { job_id: jobId, resume_id: resumeId }),
+};
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+export const notificationApi = {
+  list: () => api.get("/notifications/"),
+  unreadCount: () => api.get("/notifications/unread-count"),
+  markRead: (id: number) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post("/notifications/read-all"),
+};

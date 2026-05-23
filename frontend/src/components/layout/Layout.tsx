@@ -10,7 +10,7 @@ import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
 import { useThemeStore, applyTheme } from "../../stores/themeStore";
-import { rankingApi } from "../../lib/api";
+import { notificationApi } from "../../lib/api";
 import toast from "react-hot-toast";
 
 interface NavItem {
@@ -23,18 +23,20 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   // Candidate navigation
-  { label: "Dashboard",     path: "/candidate",   icon: LayoutDashboard, roles: ["candidate"] },
-  { label: "Upload Resume", path: "/upload",       icon: Upload,          roles: ["candidate"] },
-  { label: "Job Match",     path: "/job-match",    icon: Target,          roles: ["candidate"] },
+  { label: "Dashboard",     path: "/candidate",    icon: LayoutDashboard, roles: ["candidate"] },
+  { label: "Browse Jobs",   path: "/jobs",          icon: Briefcase,       roles: ["candidate"] },
+  { label: "Upload Resume", path: "/upload",        icon: Upload,          roles: ["candidate"] },
+  { label: "Job Match",     path: "/job-match",     icon: Target,          roles: ["candidate"] },
   // Recruiter navigation
-  { label: "Dashboard",     path: "/recruiter",    icon: LayoutDashboard, roles: ["recruiter"] },
-  { label: "Post a Job",    path: "/jobs/create",  icon: Briefcase,       roles: ["recruiter"] },
+  { label: "Dashboard",     path: "/recruiter",     icon: LayoutDashboard, roles: ["recruiter"] },
+  { label: "Post a Job",    path: "/jobs/create",   icon: Briefcase,       roles: ["recruiter"] },
   // Admin navigation
-  { label: "Dashboard",     path: "/admin",        icon: LayoutDashboard, roles: ["admin"] },
-  { label: "Post a Job",    path: "/jobs/create",  icon: Briefcase,       roles: ["admin"] },
-  { label: "Analytics",     path: "/admin",        icon: BarChart3,       roles: ["admin"] },
+  { label: "Dashboard",     path: "/admin",         icon: LayoutDashboard, roles: ["admin"] },
+  { label: "Browse Jobs",   path: "/jobs",           icon: Briefcase,       roles: ["admin"] },
+  { label: "Post a Job",    path: "/jobs/create",   icon: Briefcase,       roles: ["admin"] },
+  { label: "Analytics",     path: "/admin",         icon: BarChart3,       roles: ["admin"] },
   // Shared
-  { label: "Profile",       path: "/profile",      icon: UserCircle,      roles: ["candidate", "recruiter", "admin"] },
+  { label: "Profile",       path: "/profile",       icon: UserCircle,      roles: ["candidate", "recruiter", "admin"] },
 ];
 
 function Avatar({ name }: { name: string }) {
@@ -303,25 +305,24 @@ function SidebarContent({ onClose }: SidebarContentProps) {
 }
 
 function NotificationBell() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  // Candidates: check for recent application status updates
-  const { data: apps = [] } = useQuery({
-    queryKey: ["my-applications"],
-    queryFn: () => rankingApi.myApplications().then(r => r.data),
-    enabled: user?.role === "candidate",
-    staleTime: 1000 * 60 * 2,
+  const { data } = useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: () => notificationApi.unreadCount().then(r => r.data),
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
   });
 
-  const unreadCount = (apps as any[]).filter(a => {
-    if (!a.updated_at) return false;
-    const diff = Date.now() - new Date(a.updated_at).getTime();
-    return diff < 86400000 && a.application_status !== 'applied';
-  }).length;
+  const unreadCount: number = (data as any)?.count ?? 0;
 
   return (
     <div className="relative">
-      <button className="btn-ghost p-2 rounded-lg" aria-label="Notifications">
+      <button
+        onClick={() => navigate("/notifications")}
+        className="btn-ghost p-2 rounded-lg"
+        aria-label="Notifications"
+      >
         <Bell className="w-4 h-4" />
       </button>
       {unreadCount > 0 && (

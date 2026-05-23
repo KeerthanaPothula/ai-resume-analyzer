@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.models.user import User
 from app.models.resume import Resume
 from app.models.job import JobDescription, ATSScore, CandidateRanking, ApplicationStatus
+from app.models.notification import Notification, NotificationType
 from app.core.security import get_current_active_user
 from app.services.ai.scoring_engine import calculate_ats_score, generate_interview_questions
 from app.services.ai.skill_extractor import generate_skill_gap_analysis
@@ -289,6 +290,51 @@ def update_ranking_entry(
 
     if data.interview_instructions is not None:
         ranking.interview_instructions = data.interview_instructions or None
+
+    # Notify the candidate when status changes
+    resume = db.query(Resume).filter(Resume.id == ranking.resume_id).first()
+    job = db.query(JobDescription).filter(JobDescription.id == ranking.job_id).first()
+    if resume and job and data.application_status is not None:
+        status_val = ranking.application_status.value
+        status_messages = {
+            ApplicationStatus.shortlisted.value: (
+                "You've been shortlisted!",
+                f"Great news! You've been shortlisted for \"{job.title}\" at {job.company or 'the company'}.",
+                NotificationType.shortlisted,
+            ),
+            ApplicationStatus.interview_scheduled.value: (
+                "Interview Scheduled",
+                f"Your interview for \"{job.title}\" at {job.company or 'the company'} has been scheduled.",
+                NotificationType.interview_scheduled,
+            ),
+            ApplicationStatus.rejected.value: (
+                "Application Update",
+                f"Thank you for applying to \"{job.title}\" at {job.company or 'the company'}. The position has been filled.",
+                NotificationType.rejected,
+            ),
+            ApplicationStatus.accepted.value: (
+                "Congratulations!",
+                f"Your application for \"{job.title}\" at {job.company or 'the company'} has been accepted!",
+                NotificationType.accepted,
+            ),
+            ApplicationStatus.under_review.value: (
+                "Application Under Review",
+                f"Your application for \"{job.title}\" at {job.company or 'the company'} is now under review.",
+                NotificationType.status_updated,
+            ),
+        }
+        if status_val in status_messages:
+            title, message, ntype = status_messages[status_val]
+            candidate_user_id = resume.user_id
+            notification = Notification(
+                user_id=candidate_user_id,
+                title=title,
+                message=message,
+                type=ntype,
+                action_url="/candidate",
+                read=False,
+            )
+            db.add(notification)
 
     db.commit()
     db.refresh(ranking)
