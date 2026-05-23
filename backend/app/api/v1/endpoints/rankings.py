@@ -63,7 +63,7 @@ def rank_candidates_for_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role not in ["recruiter", "admin"]:
+    if current_user.role.value not in ("recruiter", "admin"):
         raise HTTPException(status_code=403, detail="Only recruiters can rank candidates")
 
     job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
@@ -248,7 +248,7 @@ def update_ranking_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role not in ["recruiter", "admin"]:
+    if current_user.role.value not in ("recruiter", "admin"):
         raise HTTPException(status_code=403, detail="Only recruiters can update rankings")
 
     ranking = db.query(CandidateRanking).filter(CandidateRanking.id == ranking_id).first()

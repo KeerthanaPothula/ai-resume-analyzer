@@ -19,7 +19,7 @@ def create_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role not in ["recruiter", "admin"]:
+    if current_user.role.value not in ("recruiter", "admin"):
         raise HTTPException(status_code=403, detail="Only recruiters can post jobs")
 
     # Extract skills from description if not provided
@@ -53,7 +53,7 @@ def list_jobs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    if current_user.role == "recruiter":
+    if current_user.role.value == "recruiter":
         return db.query(JobDescription).filter(JobDescription.recruiter_id == current_user.id).all()
     return db.query(JobDescription).all()
 

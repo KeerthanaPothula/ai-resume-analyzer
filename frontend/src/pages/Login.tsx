@@ -165,7 +165,7 @@ export default function Login() {
 
         {/* Demo hint */}
         <div className="mt-4 card p-4 text-xs text-slate-400 space-y-1">
-          <p className="font-semibold text-slate-300 mb-1.5">Demo accounts (register first):</p>
+          <p className="font-semibold text-slate-300 mb-1.5">Try a demo account:</p>
           <p>
             <span className="text-slate-300">Candidate:</span> candidate@demo.com / demo1234
           </p>
