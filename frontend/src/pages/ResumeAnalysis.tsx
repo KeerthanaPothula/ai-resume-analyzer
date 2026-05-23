@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -210,6 +210,7 @@ function JobMatchCard({
 export default function ResumeAnalysis() {
   const { resumeId } = useParams<{ resumeId: string }>();
   const { theme } = useThemeStore();
+  const navigate = useNavigate();
   const isDark = theme === "dark";
   const id = parseInt(resumeId ?? "0", 10);
 
@@ -254,7 +255,7 @@ export default function ResumeAnalysis() {
               icon={AlertTriangle}
               title="Resume not found"
               description="This resume may have been deleted or you don't have access to it."
-              action={{ label: "Back to Dashboard", onClick: () => history.back() }}
+              action={{ label: "Back to Dashboard", onClick: () => navigate(-1) }}
             />
           </ErrorBoundary>
         </div>

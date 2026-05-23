@@ -168,7 +168,7 @@ export const aiFeedbackApi = {
 // ── Profile / Account ─────────────────────────────────────────────────────────
 export const profileApi = {
   update: (data: { full_name?: string; email?: string }) =>
-    api.put(`/users/${api.defaults.baseURL}`, data),
+    api.put("/users/me", data),
   updateMe: (userId: number, data: { full_name?: string; email?: string }) =>
     api.put(`/users/${userId}`, data),
   changePassword: (data: { current_password: string; new_password: string }) =>
