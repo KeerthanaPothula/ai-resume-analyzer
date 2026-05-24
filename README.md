@@ -28,6 +28,25 @@ RecruitAI is a SaaS-style hiring platform built for the full recruitment lifecyc
 
 ---
 
+## Screenshots
+
+### Landing Page
+![Landing Page](screenshots/landing-page.png)
+
+### Authentication
+![Authentication](screenshots/auth-page.png)
+
+### Candidate Dashboard
+![Candidate Dashboard](screenshots/candidate-dashboard.png)
+
+### Resume Analysis
+![Resume Analysis](screenshots/resume-analysis.png)
+
+### AI Feedback
+![AI Feedback](screenshots/ai-feedback.png)
+
+---
+
 ## Features
 
 ### AI & Resume Intelligence
