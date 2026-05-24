@@ -30,7 +30,7 @@ def get_notifications(
             "type": n.type.value if n.type else None,
             "read": n.read,
             "action_url": n.action_url,
-            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "created_at": (n.created_at.isoformat() + "Z") if n.created_at else None,
         }
         for n in notifications
     ]

@@ -1,4 +1,4 @@
-# AI Resume Intelligence Platform
+# RecruitAI — AI-Powered Recruitment & Applicant Tracking Platform
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -7,56 +7,58 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> A production-grade, full-stack AI recruitment platform that automates resume analysis, ATS scoring, candidate ranking, and end-to-end application tracking — powered by Google Gemini / OpenAI.
+> Full-stack ATS and recruitment automation platform — AI resume scoring, semantic candidate ranking, LLM-generated feedback, and a complete six-stage hiring pipeline — built with FastAPI, React 18, and Google Gemini.
 
 ---
 
 ## Overview
 
-The AI Resume Intelligence Platform is a modern SaaS-quality hiring tool that bridges candidates and recruiters with AI. It combines ATS scoring, semantic job matching, LLM-powered feedback, and a complete application status workflow — making it comparable to Lever, Greenhouse, and LinkedIn Recruiter.
+RecruitAI is a production-grade recruitment platform designed for the full hiring lifecycle. It gives recruiters a structured applicant tracking system with AI-powered candidate ranking, and gives candidates instant resume intelligence — ATS scores, skill gap analysis, LLM feedback, and live job-match scoring — all from a single interface.
 
-**Candidate** — Upload resumes, get instant AI analysis, match against jobs, and track every application status from a single dashboard.
+The system is architected as a role-separated SaaS product: candidates and recruiters operate independent dashboards with real-time status sync, notification delivery, and a transparent application pipeline from first apply through interview scheduling to final decision.
 
-**Recruiter** — Post jobs, rank the entire candidate pool in one click, move candidates through a hiring pipeline with interview scheduling, and view real analytics.
+**Candidate workflow** — Upload a PDF or DOCX resume, receive an instant multi-factor ATS score and AI-generated feedback, match against any job posting with semantic similarity scoring, and track every application's live pipeline status with recruiter notes and interview details.
+
+**Recruiter workflow** — Post jobs, browse and filter the full candidate pool, trigger one-click AI ranking against a specific job, advance candidates through a six-stage pipeline, schedule interviews with structured details, and monitor hiring funnel KPIs via a real-time analytics dashboard.
 
 ---
 
 ## Features
 
-### AI & Intelligence
+### AI & Resume Intelligence
 - **ATS Scoring** — Multi-factor score: skill match (40%), experience (25%), education (20%), semantic similarity (15%)
-- **Semantic Job Matching** — TF-IDF embeddings + cosine similarity for deep resume-to-job compatibility
+- **Semantic Job Matching** — Sentence-transformer embeddings + cosine similarity for deep resume-to-job compatibility
 - **LLM Feedback** — Google Gemini 2.5 Flash or OpenAI GPT-4o-mini for narrative feedback, gap analysis, and interview prep questions
-- **Skill Extraction** — 200+ technical and soft skills from resume text
-- **Career Chat** — AI coaching assistant with live resume context
+- **Skill Extraction** — 200+ technical and soft skills detected from unstructured resume text
+- **Career Chat** — Conversational AI coaching with live resume context injected into every message
 
-### Application Tracking System
-- Six-stage pipeline: `Applied → Under Review → Shortlisted → Interview Scheduled → Accepted/Rejected`
-- Recruiter status changes are instantly reflected on the candidate's dashboard
-- Interview scheduling with date/time picker, meeting link, and custom instructions
-- Notification badge for new status updates
-- Recruiter notes surfaced to candidates post-shortlisting
+### Applicant Tracking System
+- Six-stage hiring pipeline: `Applied → Under Review → Shortlisted → Interview Scheduled → Accepted / Rejected`
+- Status transitions are instantly reflected on the candidate dashboard with recruiter notes
+- Interview scheduling with date/time, meeting link, and structured instructions
+- In-app notification system with unread badge, per-event type icons, and real-time polling
+- Full application history with timestamps on every stage transition
 
 ### Recruiter Tools
-- Job pipeline management with search, edit, delete
-- Candidate pool browser with score-range filters and multi-sort
-- Bulk AI ranking that preserves existing pipeline decisions on re-rank
-- Hiring funnel KPIs: shortlisted, interviewing, accepted, rejected counts
-- Analytics: score distributions, job posting trends, most in-demand skills
+- Job pipeline management: create, search, edit, archive, delete
+- Candidate pool browser with ATS score-range filters and multi-column sort
+- Bulk AI ranking that re-scores all applicants against a job while preserving existing pipeline decisions
+- Hiring funnel KPIs: shortlisted, interviewing, accepted, and rejected counts per job
+- Analytics dashboard: ATS score distributions, job posting trends, and most in-demand skills
 
 ### Security
-- JWT access + refresh token rotation (SHA-256 hash stored server-side)
-- Silent token refresh via Axios interceptor
-- Rate limiting on auth endpoints (slowapi)
+- JWT access + refresh token rotation (SHA-256 hash stored server-side, never raw token)
+- Silent token refresh via Axios interceptor — zero user disruption on expiry
+- Rate limiting on all auth endpoints (slowapi)
 - Role-based access control: `candidate / recruiter / admin`
 - Password change with current-password verification
-- Forgot / Reset password with time-limited tokens (SHA-256 hashed, single-use)
-- SMTP email delivery with branded HTML template; dev fallback prints link to terminal
+- Forgot / Reset password with time-limited, single-use, SHA-256-hashed tokens
+- SMTP email delivery with branded HTML template; dev mode surfaces reset link to terminal
 
 ### UI/UX
 - Dark / light mode with persistent preference
 - Skeleton loaders on every data-heavy view
-- Framer Motion animations and tab transitions
+- Framer Motion page transitions and component animations
 - Mobile-responsive sidebar with animated drawer
 - Optimistic UI updates on pipeline status changes
 
