@@ -1,4 +1,4 @@
-# RecruitAI — AI-Powered Recruitment & ATS Platform
+# RecruitAI — AI-Powered Recruitment & Applicant Tracking Platform
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -7,52 +7,53 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Full-stack AI recruitment platform — ATS resume scoring, semantic candidate ranking, LLM-generated feedback, and a complete six-stage hiring pipeline. Built with FastAPI, React 18, and Google Gemini.
+> A production-grade, full-stack AI recruitment platform with ATS resume scoring, semantic candidate ranking, LLM-generated feedback, and a six-stage applicant tracking pipeline — built with FastAPI, React 18, and Google Gemini.
+
+---
+
+## Highlights
+
+- **AI-powered ATS scoring** using multi-factor analysis: skill match, experience, education, and semantic similarity
+- **Semantic resume-to-job matching** with sentence-transformer embeddings and cosine similarity
+- **LLM feedback engine** — Google Gemini / OpenAI generates gap analysis, strengths, and interview prep questions per candidate
+- **Full applicant tracking system** with a six-stage hiring pipeline, real-time status sync, and interview scheduling
+- **Role-separated dashboards** — independent, tailored interfaces for candidates and recruiters
+- **Secure authentication** — JWT with refresh token rotation, RBAC, rate limiting, and SMTP password reset
 
 ---
 
 ## Overview
 
-RecruitAI covers the full hiring lifecycle in a single role-separated interface. Recruiters get an applicant tracking system with AI-powered candidate ranking and funnel analytics. Candidates get instant ATS scoring, skill gap analysis, semantic job matching, and LLM-generated resume feedback — with real-time notifications on every pipeline update.
+RecruitAI is a SaaS-style hiring platform built for the full recruitment lifecycle. Candidates upload resumes and get instant AI-scored feedback, semantic job matching, and live pipeline visibility. Recruiters post jobs, trigger one-click AI ranking across the entire applicant pool, and manage candidates through a structured pipeline — from initial review through interview scheduling to final decision — with KPI analytics at every step.
 
 ---
 
-## Screenshots
+## Features
 
-> _Demo screenshots / GIF coming soon._
+### AI & Resume Intelligence
+- Multi-factor ATS score: skill match (40%), experience (25%), education (20%), semantic similarity (15%)
+- Sentence-transformer embeddings (`all-MiniLM-L6-v2`) for deep resume-to-job compatibility scoring
+- Google Gemini 2.5 Flash / OpenAI GPT-4o-mini for narrative feedback, skill gap analysis, and interview prep
+- 200+ technical and soft skills extracted from unstructured PDF and DOCX resume text
+- AI career coach — conversational assistant with live resume context
 
-| Candidate Dashboard | Recruiter Rankings | Job Match Analyzer |
-|:---:|:---:|:---:|
-| _(screenshot)_ | _(screenshot)_ | _(screenshot)_ |
+### Applicant Tracking System
+- Six-stage pipeline: `Applied → Under Review → Shortlisted → Interview Scheduled → Accepted / Rejected`
+- Recruiter status changes sync to the candidate dashboard in real time
+- Structured interview scheduling — date/time, meeting link, and custom instructions per candidate
+- In-app notification system with per-event type icons and unread count badge
 
----
+### Recruiter Tools
+- Job management — create, search, filter, edit, archive job postings
+- Candidate pool browser with ATS score-range filters and multi-column sort
+- One-click bulk AI ranking across all applicants, preserving existing pipeline decisions
+- Hiring funnel analytics — shortlisted, interviewing, accepted, and rejected KPIs per job
 
-## Key Features
-
-**AI & Resume Intelligence**
-- Multi-factor ATS scoring — skill match, experience, education, semantic similarity
-- Sentence-transformer embeddings + cosine similarity for deep resume-to-job matching
-- Google Gemini / OpenAI LLM feedback: gap analysis, strengths, interview prep questions
-- 200+ technical and soft skills extracted from unstructured resume text
-- Conversational AI career coach with live resume context
-
-**Applicant Tracking System**
-- Six-stage hiring pipeline: `Applied → Under Review → Shortlisted → Interview Scheduled → Accepted / Rejected`
-- Real-time status sync between candidate and recruiter dashboards
-- Interview scheduling — date/time, meeting link, custom instructions
-- In-app notification system with unread badge and per-event icons
-
-**Recruiter Tools**
-- Job pipeline management with search, filter, edit, archive
-- Candidate pool browser — ATS score-range filters, multi-column sort
-- One-click bulk AI ranking that preserves existing pipeline decisions
-- Hiring funnel KPIs and analytics dashboard (score distribution, skill demand trends)
-
-**Platform**
-- JWT auth with refresh token rotation and silent renewal
+### Platform
+- JWT access + refresh token rotation with silent renewal via Axios interceptor
 - Role-based access control: `candidate / recruiter / admin`
-- Password reset via SMTP email (Gmail, Outlook, SendGrid)
-- Dark / light mode, skeleton loaders, Framer Motion animations, mobile-responsive
+- SMTP password reset — time-limited single-use tokens, Gmail / Outlook / SendGrid compatible
+- Dark / light mode, skeleton loaders, Framer Motion animations, mobile-responsive layout
 
 ---
 
@@ -66,33 +67,33 @@ RecruitAI covers the full hiring lifecycle in a single role-separated interface.
 | Backend | Python 3.11+, FastAPI, SQLAlchemy 2 |
 | Database | SQLite (dev) · PostgreSQL (prod) |
 | AI / LLM | Google Gemini 2.5 Flash · OpenAI GPT-4o-mini |
-| Embeddings | sentence-transformers `all-MiniLM-L6-v2` |
-| Auth | JWT, bcrypt, slowapi rate limiting |
+| Embeddings | sentence-transformers (`all-MiniLM-L6-v2`) |
+| Auth | JWT (PyJWT), bcrypt, slowapi rate limiting |
 
 ---
 
 ## Local Setup
 
-**Prerequisites:** Python 3.11+, Node.js 18+, and an optional Gemini or OpenAI API key.
+**Requires:** Python 3.11+, Node.js 18+. A Gemini or OpenAI API key is optional — the platform runs with template-based fallback without one.
 
 ```bash
-# 1 — Backend
+# Backend
 cd backend
-python -m venv venv && venv\Scripts\activate   # Windows
+python -m venv venv && venv\Scripts\activate
 pip install -r requirements_local.txt
-cp .env.example .env                           # add SECRET_KEY and AI key
+cp .env.example .env        # set SECRET_KEY; optionally add GEMINI_API_KEY
 uvicorn app.main:app --reload --port 8000
 
-# 2 — Frontend (separate terminal)
+# Frontend  (new terminal)
 cd frontend
 npm install && npm run dev
 ```
 
-| Service | URL |
+| | URL |
 |---|---|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:8000 |
-| Swagger docs | http://localhost:8000/docs |
+| App | http://localhost:5173 |
+| API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
 
 ---
 
