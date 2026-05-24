@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1.endpoints import ai_feedback, analysis, applications, auth, dashboard, jobs, notifications, rankings, resumes, users
+from app.api.v1.endpoints import ai_feedback, analysis, applications, auth, candidates, dashboard, jobs, notifications, rankings, resumes, users
 import app.models.notification  # noqa: F401 — ensures Notification table is created by create_all
 from app.core.config import settings
 from app.core.limiter import limiter
@@ -70,6 +70,24 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass  # Column already exists — migration already ran, data is clean
 
+            # Orphan cleanup: remove ATS scores and rankings whose resume or job
+            # no longer exists. Safe to run on every startup — only touches truly
+            # broken rows; valid data is never affected.
+            try:
+                conn.execute(text(
+                    "DELETE FROM ats_scores "
+                    "WHERE resume_id NOT IN (SELECT id FROM resumes) "
+                    "OR job_id NOT IN (SELECT id FROM job_descriptions)"
+                ))
+                conn.execute(text(
+                    "DELETE FROM candidate_rankings "
+                    "WHERE resume_id NOT IN (SELECT id FROM resumes) "
+                    "OR job_id NOT IN (SELECT id FROM job_descriptions)"
+                ))
+                conn.commit()
+            except Exception:
+                pass
+
     yield
 
 
@@ -100,16 +118,17 @@ os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # ── Routers ────────────────────────────────────────────────────────────────────
-app.include_router(auth.router,      prefix="/api/v1/auth",      tags=["Authentication"])
-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-app.include_router(users.router,     prefix="/api/v1/users",     tags=["Users"])
-app.include_router(resumes.router,   prefix="/api/v1/resumes",   tags=["Resumes"])
-app.include_router(jobs.router,      prefix="/api/v1/jobs",      tags=["Job Descriptions"])
-app.include_router(analysis.router,  prefix="/api/v1/analysis",  tags=["AI Analysis"])
-app.include_router(rankings.router,   prefix="/api/v1/rankings",    tags=["Rankings"])
-app.include_router(ai_feedback.router,    prefix="/api/v1/ai-feedback",   tags=["AI Feedback"])
-app.include_router(applications.router,   prefix="/api/v1/applications",  tags=["Applications"])
-app.include_router(notifications.router,  prefix="/api/v1/notifications",  tags=["Notifications"])
+app.include_router(auth.router,         prefix="/api/v1/auth",         tags=["Authentication"])
+app.include_router(dashboard.router,    prefix="/api/v1/dashboard",    tags=["Dashboard"])
+app.include_router(users.router,        prefix="/api/v1/users",        tags=["Users"])
+app.include_router(resumes.router,      prefix="/api/v1/resumes",      tags=["Resumes"])
+app.include_router(candidates.router,   prefix="/api/v1/candidates",   tags=["Candidates"])
+app.include_router(jobs.router,         prefix="/api/v1/jobs",         tags=["Job Descriptions"])
+app.include_router(analysis.router,     prefix="/api/v1/analysis",     tags=["AI Analysis"])
+app.include_router(rankings.router,     prefix="/api/v1/rankings",     tags=["Rankings"])
+app.include_router(ai_feedback.router,  prefix="/api/v1/ai-feedback",  tags=["AI Feedback"])
+app.include_router(applications.router, prefix="/api/v1/applications", tags=["Applications"])
+app.include_router(notifications.router,prefix="/api/v1/notifications",tags=["Notifications"])
 
 
 @app.get("/")

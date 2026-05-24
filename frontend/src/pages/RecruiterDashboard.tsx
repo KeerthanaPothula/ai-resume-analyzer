@@ -19,10 +19,10 @@ import SkillBadge from "../components/ui/SkillBadge";
 import EmptyState from "../components/ui/EmptyState";
 import { SkeletonStatsRow, SkeletonCard } from "../components/ui/Skeleton";
 import ErrorBoundary from "../components/error/ErrorBoundary";
-import { dashboardApi, jobApi, resumeApi } from "../lib/api";
+import { candidateApi, dashboardApi, jobApi } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 import { useThemeStore } from "../stores/themeStore";
-import { Resume } from "../types";
+import { CandidatePoolEntry } from "../types";
 
 interface JobRow {
   id: number;
@@ -260,8 +260,8 @@ function JobCard({
 
 // ── Candidate Card ─────────────────────────────────────────────────────────────
 
-function CandidateCard({ resume }: { resume: Resume }) {
-  const score = resume.ats_score || 0;
+function CandidateCard({ candidate }: { candidate: CandidatePoolEntry }) {
+  const score = candidate.ats_score || 0;
   const scoreColor = score >= 70 ? "text-emerald-500" : score >= 50 ? "text-amber-500" : "text-red-400";
 
   return (
@@ -273,23 +273,23 @@ function CandidateCard({ resume }: { resume: Resume }) {
     >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-violet-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-          {(resume.candidate_name || resume.original_name || "?")[0].toUpperCase()}
+          {(candidate.candidate_name || "?")[0].toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="font-medium text-sm truncate" style={{ color: "var(--text-primary)" }}>
-                {resume.candidate_name || resume.original_name}
+                {candidate.candidate_name}
               </p>
               <div className="flex items-center gap-2 text-xs mt-0.5 flex-wrap" style={{ color: "var(--text-muted)" }}>
-                {resume.experience_years != null && (
+                {candidate.experience_years != null && (
                   <span className="flex items-center gap-1">
-                    <Briefcase className="w-3 h-3" /> {resume.experience_years.toFixed(0)}y
+                    <Briefcase className="w-3 h-3" /> {candidate.experience_years.toFixed(0)}y
                   </span>
                 )}
-                {resume.education_level && (
+                {candidate.education_level && (
                   <span className="flex items-center gap-1">
-                    <GraduationCap className="w-3 h-3" /> {resume.education_level}
+                    <GraduationCap className="w-3 h-3" /> {candidate.education_level}
                   </span>
                 )}
               </div>
@@ -300,17 +300,17 @@ function CandidateCard({ resume }: { resume: Resume }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-1 mt-2">
-            {(resume.extracted_skills || []).slice(0, 4).map(s => <SkillBadge key={s} skill={s} />)}
-            {(resume.extracted_skills || []).length > 4 && (
+            {(candidate.extracted_skills || []).slice(0, 4).map(s => <SkillBadge key={s} skill={s} />)}
+            {(candidate.extracted_skills || []).length > 4 && (
               <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: "var(--text-muted)", backgroundColor: "var(--border-color)" }}>
-                +{resume.extracted_skills.length - 4}
+                +{candidate.extracted_skills.length - 4}
               </span>
             )}
           </div>
         </div>
       </div>
       <Link
-        to={`/analysis/${resume.id}`}
+        to={`/analysis/${candidate.resume_id}`}
         className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-500"
         style={{ borderColor: "var(--border-color)", color: "var(--text-secondary)" }}
       >
@@ -322,7 +322,7 @@ function CandidateCard({ resume }: { resume: Resume }) {
 
 // ── Analytics Panel ────────────────────────────────────────────────────────────
 
-function AnalyticsPanel({ jobs, resumes, isDark }: { jobs: JobRow[]; resumes: Resume[]; isDark: boolean }) {
+function AnalyticsPanel({ jobs, candidates, isDark }: { jobs: JobRow[]; candidates: CandidatePoolEntry[]; isDark: boolean }) {
   const tickColor = isDark ? "#94a3b8" : "#475569";
   const gridColor = isDark ? "#1e293b" : "#f1f5f9";
   const tooltipStyle = {
@@ -350,27 +350,27 @@ function AnalyticsPanel({ jobs, resumes, isDark }: { jobs: JobRow[]; resumes: Re
   }, [jobs]);
 
   const scoreDistribution = useMemo(() => {
-    const high = resumes.filter(r => (r.ats_score || 0) >= 70).length;
-    const mid = resumes.filter(r => (r.ats_score || 0) >= 40 && (r.ats_score || 0) < 70).length;
-    const low = resumes.filter(r => (r.ats_score || 0) < 40).length;
+    const high = candidates.filter(c => (c.ats_score || 0) >= 70).length;
+    const mid = candidates.filter(c => (c.ats_score || 0) >= 40 && (c.ats_score || 0) < 70).length;
+    const low = candidates.filter(c => (c.ats_score || 0) < 40).length;
     return [
       { name: "High (70%+)", value: high, color: "#10b981" },
       { name: "Mid (40–70%)", value: mid, color: "#f59e0b" },
       { name: "Low (<40%)", value: low, color: "#ef4444" },
     ].filter(d => d.value > 0);
-  }, [resumes]);
+  }, [candidates]);
 
   const topCandidateSkills = useMemo(() => {
     const counts: Record<string, number> = {};
-    resumes.forEach(r => (r.extracted_skills || []).forEach(s => { counts[s] = (counts[s] || 0) + 1; }));
+    candidates.forEach(c => (c.extracted_skills || []).forEach(s => { counts[s] = (counts[s] || 0) + 1; }));
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count }));
-  }, [resumes]);
+  }, [candidates]);
 
-  const avgScore = resumes.length
-    ? Math.round(resumes.reduce((a, r) => a + (r.ats_score || 0), 0) / resumes.length)
+  const avgScore = candidates.length
+    ? Math.round(candidates.reduce((a, c) => a + (c.ats_score || 0), 0) / candidates.length)
     : 0;
 
-  if (jobs.length === 0 && resumes.length === 0) {
+  if (jobs.length === 0 && candidates.length === 0) {
     return (
       <EmptyState
         icon={BarChart3}
@@ -386,7 +386,7 @@ function AnalyticsPanel({ jobs, resumes, isDark }: { jobs: JobRow[]; resumes: Re
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Jobs Posted", value: jobs.length, color: "text-violet-500", bg: "bg-violet-500/10" },
-          { label: "Candidate Pool", value: resumes.length, color: "text-sky-500", bg: "bg-sky-500/10" },
+          { label: "Candidate Pool", value: candidates.length, color: "text-sky-500", bg: "bg-sky-500/10" },
           { label: "Avg Candidate Score", value: `${avgScore}%`, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           {
             label: "Unique Skills Required",
@@ -524,9 +524,9 @@ export default function RecruiterDashboard() {
     queryFn: () => dashboardApi.recruiter().then(r => r.data),
   });
 
-  const { data: allResumes = [], isLoading: resumesLoading } = useQuery<Resume[]>({
-    queryKey: ["resumes", "all"],
-    queryFn: () => resumeApi.list().then(r => r.data),
+  const { data: allCandidates = [], isLoading: candidatesLoading } = useQuery<CandidatePoolEntry[]>({
+    queryKey: ["candidates"],
+    queryFn: () => candidateApi.list().then(r => r.data),
     enabled: activeTab === "candidates" || activeTab === "analytics",
   });
 
@@ -574,25 +574,25 @@ export default function RecruiterDashboard() {
   }, [data, jobSearch]);
 
   const filteredCandidates = useMemo(() => {
-    let list = [...allResumes];
+    let list = [...allCandidates];
     const q = candidateSearch.toLowerCase();
     if (q) {
-      list = list.filter(r =>
-        (r.candidate_name ?? "").toLowerCase().includes(q) ||
-        (r.candidate_email ?? "").toLowerCase().includes(q) ||
-        (r.extracted_skills ?? []).some(s => s.toLowerCase().includes(q))
+      list = list.filter(c =>
+        c.candidate_name.toLowerCase().includes(q) ||
+        c.candidate_email.toLowerCase().includes(q) ||
+        (c.extracted_skills ?? []).some(s => s.toLowerCase().includes(q))
       );
     }
-    if (scoreFilter === "high") list = list.filter(r => (r.ats_score || 0) >= 70);
-    else if (scoreFilter === "mid") list = list.filter(r => (r.ats_score || 0) >= 40 && (r.ats_score || 0) < 70);
-    else if (scoreFilter === "low") list = list.filter(r => (r.ats_score || 0) < 40);
+    if (scoreFilter === "high") list = list.filter(c => (c.ats_score || 0) >= 70);
+    else if (scoreFilter === "mid") list = list.filter(c => (c.ats_score || 0) >= 40 && (c.ats_score || 0) < 70);
+    else if (scoreFilter === "low") list = list.filter(c => (c.ats_score || 0) < 40);
     list.sort((a, b) => {
       if (sortBy === "score") return (b.ats_score || 0) - (a.ats_score || 0);
       if (sortBy === "date") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      return (a.candidate_name || "").localeCompare(b.candidate_name || "");
+      return a.candidate_name.localeCompare(b.candidate_name);
     });
     return list;
-  }, [allResumes, candidateSearch, scoreFilter, sortBy]);
+  }, [allCandidates, candidateSearch, scoreFilter, sortBy]);
 
   if (error) {
     return (
@@ -876,22 +876,22 @@ export default function RecruiterDashboard() {
               </div>
 
               {/* Stats bar */}
-              {!resumesLoading && allResumes.length > 0 && (
+              {!candidatesLoading && allCandidates.length > 0 && (
                 <div className="flex items-center gap-4 px-4 py-2.5 rounded-xl text-xs flex-wrap" style={{ backgroundColor: "var(--bg-surface)" }}>
                   <span style={{ color: "var(--text-muted)" }}>{filteredCandidates.length} shown</span>
                   <span className="text-emerald-500 font-medium">
-                    {allResumes.filter(r => (r.ats_score || 0) >= 70).length} high-fit
+                    {allCandidates.filter(c => (c.ats_score || 0) >= 70).length} high-fit
                   </span>
                   <span className="text-amber-500 font-medium">
-                    {allResumes.filter(r => (r.ats_score || 0) >= 40 && (r.ats_score || 0) < 70).length} mid-fit
+                    {allCandidates.filter(c => (c.ats_score || 0) >= 40 && (c.ats_score || 0) < 70).length} mid-fit
                   </span>
                   <span className="text-red-400 font-medium">
-                    {allResumes.filter(r => (r.ats_score || 0) < 40).length} low-fit
+                    {allCandidates.filter(c => (c.ats_score || 0) < 40).length} low-fit
                   </span>
                 </div>
               )}
 
-              {resumesLoading ? (
+              {candidatesLoading ? (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {[1, 2, 3, 4, 5, 6].map(i => <SkeletonCard key={i} lines={2} />)}
                 </div>
@@ -899,10 +899,10 @@ export default function RecruiterDashboard() {
                 <div className="card">
                   <EmptyState
                     icon={Users}
-                    title={allResumes.length === 0 ? "No candidates yet" : "No candidates match your filters"}
+                    title={allCandidates.length === 0 ? "No candidates yet" : "No candidates match your filters"}
                     description={
-                      allResumes.length === 0
-                        ? "Candidates need to sign up and upload their resumes to appear here."
+                      allCandidates.length === 0
+                        ? "Candidates need to sign up and upload a resume to appear here."
                         : "Try adjusting your search or score filter."
                     }
                     action={candidateSearch || scoreFilter !== "all"
@@ -913,15 +913,15 @@ export default function RecruiterDashboard() {
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <AnimatePresence mode="popLayout">
-                    {filteredCandidates.map(r => (
-                      <CandidateCard key={r.id} resume={r} />
+                    {filteredCandidates.map(c => (
+                      <CandidateCard key={c.user_id} candidate={c} />
                     ))}
                   </AnimatePresence>
                 </div>
               )}
 
               {/* Rank CTA */}
-              {!resumesLoading && filteredCandidates.length > 0 && data && data.jobs.length > 0 && (
+              {!candidatesLoading && filteredCandidates.length > 0 && data && data.jobs.length > 0 && (
                 <div className="card p-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
@@ -951,12 +951,12 @@ export default function RecruiterDashboard() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
             >
-              {isLoading || resumesLoading ? (
+              {isLoading || candidatesLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map(i => <SkeletonCard key={i} lines={3} />)}
                 </div>
               ) : (
-                <AnalyticsPanel jobs={data!.jobs} resumes={allResumes} isDark={isDark} />
+                <AnalyticsPanel jobs={data!.jobs} candidates={allCandidates} isDark={isDark} />
               )}
             </motion.div>
           )}

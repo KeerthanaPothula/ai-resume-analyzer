@@ -192,6 +192,11 @@ export const profileApi = {
     api.post("/auth/change-password", data),
 };
 
+// ── Candidates (recruiter pool — one per unique user) ─────────────────────────
+export const candidateApi = {
+  list: () => api.get("/candidates/"),
+};
+
 // ── Applications (candidate self-apply) ───────────────────────────────────────
 export const applicationApi = {
   apply: (jobId: number, resumeId: number) =>

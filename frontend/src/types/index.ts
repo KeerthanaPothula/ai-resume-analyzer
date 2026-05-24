@@ -51,6 +51,19 @@ export interface JobDescription {
   created_at: string;
 }
 
+export interface CandidatePoolEntry {
+  user_id: number;
+  resume_id: number;
+  candidate_name: string;
+  candidate_email: string;
+  ats_score: number;
+  extracted_skills: string[];
+  experience_years: number;
+  education_level: string | null;
+  original_name: string;
+  created_at: string;
+}
+
 export interface ATSScore {
   id: number;
   resume_id: number;

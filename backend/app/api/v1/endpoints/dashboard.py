@@ -77,19 +77,25 @@ def recruiter_summary(
     )
     job_ids = [j.id for j in jobs]
 
-    total_candidates = db.query(func.count(Resume.id)).scalar() or 0
+    # Count distinct candidate users with at least one resume (not raw resume rows)
+    total_candidates = (
+        db.query(func.count(func.distinct(Resume.user_id))).scalar() or 0
+    )
     now = datetime.now(timezone.utc)
     this_month_jobs = [
         j for j in jobs
         if j.created_at.month == now.month and j.created_at.year == now.year
     ]
 
-    # Hiring funnel — aggregate across all recruiter's jobs
+    # Hiring funnel — aggregate across all recruiter's jobs, real applicants only
     funnel: dict[str, int] = {s.value: 0 for s in ApplicationStatus}
     if job_ids:
         rankings = (
             db.query(CandidateRanking)
-            .filter(CandidateRanking.job_id.in_(job_ids))
+            .filter(
+                CandidateRanking.job_id.in_(job_ids),
+                CandidateRanking.is_applied == True,
+            )
             .all()
         )
         for r in rankings:
