@@ -155,7 +155,7 @@ const roles = [
       'AI rank all applicants by fit score',
       'Semantic skill matching beyond keywords',
       'Side-by-side candidate comparison',
-      'Export shortlists and reports',
+      'Manage pipeline across 6 hiring stages',
     ],
   },
   {
@@ -542,7 +542,7 @@ export default function Landing() {
               <Brain className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="font-bold text-sm text-white">RecruitAI</span>
-            <span className="text-slate-600 text-sm ml-2">© 2025</span>
+            <span className="text-slate-600 text-sm ml-2">© 2026</span>
           </div>
           <div className="flex items-center gap-6 text-slate-500 text-sm">
             <Link to="/login"    className="hover:text-slate-300 transition-colors">Sign In</Link>

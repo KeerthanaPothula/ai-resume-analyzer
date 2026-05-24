@@ -56,10 +56,15 @@ frontend/build/
 backend/package-lock.json
 backend/package.json
 
-# ── Logs ──────────────────────────────────────────────────────────────────────
+# ── Logs & dev artifacts ──────────────────────────────────────────────────────
 *.log
 logs/
 pip-log.txt
+backend/uvicorn_*.txt
+backend/startup*.log
+backend/startup*.txt
+backend/smoke_test.py
+backend/test_smtp.py
 
 # ── IDE ───────────────────────────────────────────────────────────────────────
 .vscode/
