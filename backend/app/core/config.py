@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
 from typing import List, Optional
 
 
@@ -23,7 +24,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 10
 
-    # CORS — tighten this list before going to production
+    # CORS — localhost entries kept for dev; FRONTEND_URL is appended automatically.
+    # Override entirely via env: ALLOWED_ORIGINS='["https://yourapp.vercel.app"]'
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://localhost:3000",
@@ -51,6 +53,13 @@ class Settings(BaseSettings):
     # Sender address — defaults to SMTP_USER when not set (required for Gmail)
     EMAILS_FROM_EMAIL: Optional[str] = None
     EMAILS_FROM_NAME: str = "RecruitAI"
+
+    @model_validator(mode="after")
+    def _add_frontend_url_to_origins(self) -> "Settings":
+        """Ensure FRONTEND_URL is always allowed by CORS, even when not listed explicitly."""
+        if self.FRONTEND_URL and self.FRONTEND_URL not in self.ALLOWED_ORIGINS:
+            self.ALLOWED_ORIGINS = list(self.ALLOWED_ORIGINS) + [self.FRONTEND_URL]
+        return self
 
 
 settings = Settings()
