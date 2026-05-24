@@ -5,6 +5,7 @@ import { Briefcase, Plus, X, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Layout from '../components/layout/Layout';
 import { jobApi } from '../lib/api';
+import { formatSkill } from '../utils/formatSkill';
 
 export default function JobCreate() {
   const navigate = useNavigate();
@@ -176,7 +177,7 @@ export default function JobCreate() {
                     key={skill}
                     className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400"
                   >
-                    {skill}
+                    {formatSkill(skill)}
                     <button
                       type="button"
                       onClick={() => removeSkill(skill)}

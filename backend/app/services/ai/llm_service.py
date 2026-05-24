@@ -606,9 +606,19 @@ class LLMService:
             else ""
         )
 
+        exp_intro = (
+            "Aspiring professional with strong academic foundations"
+            if experience_years == 0
+            else f"A professional with {experience_years:.0f} year{'s' if experience_years != 1 else ''} of experience"
+        )
+        exp_assessment = (
+            f"This resume has {len(skills)} detected skill(s) with academic and project-based experience. "
+            if experience_years == 0
+            else f"This resume has {len(skills)} detected skill(s) and {experience_years:.0f} year(s) of professional experience. "
+        )
         return ResumeFeedback(
             summary=(
-                f"A professional with {experience_years:.0f} year(s) of experience demonstrating "
+                f"{exp_intro} demonstrating "
                 f"proficiency in {skill_str}. {edu_note}"
                 "Shows a solid technical foundation relevant to modern software roles."
             ),
@@ -629,8 +639,8 @@ class LLMService:
                 "Place your most important skills and achievements above the fold (first half of page 1)",
             ],
             overall_assessment=(
-                f"This resume has {len(skills)} detected skill(s) and {experience_years:.0f} year(s) of experience. "
-                "Apply the suggestions above to maximize ATS compatibility and recruiter impact."
+                exp_assessment
+                + "Apply the suggestions above to maximize ATS compatibility and recruiter impact."
             ),
             interview_questions=[
                 "Tell me about yourself and your most impactful project.",

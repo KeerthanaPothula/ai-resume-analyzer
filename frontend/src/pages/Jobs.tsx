@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import Layout from "../components/layout/Layout";
 import { jobApi, resumeApi, applicationApi, rankingApi } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
+import { formatSkill } from "../utils/formatSkill";
 
 interface Job {
   id: number;
@@ -264,7 +265,7 @@ function JobCard({ job, appliedJobIds, onApply }: JobCardProps) {
       {job.required_skills.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {job.required_skills.slice(0, 6).map((skill) => (
-            <span key={skill} className="skill-badge text-xs">{skill}</span>
+            <span key={skill} className="skill-badge text-xs">{formatSkill(skill)}</span>
           ))}
           {job.required_skills.length > 6 && (
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>

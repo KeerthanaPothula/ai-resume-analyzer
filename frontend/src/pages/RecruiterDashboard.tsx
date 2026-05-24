@@ -23,6 +23,7 @@ import { candidateApi, dashboardApi, jobApi } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 import { useThemeStore } from "../stores/themeStore";
 import { CandidatePoolEntry } from "../types";
+import { formatSkill } from "../utils/formatSkill";
 
 interface JobRow {
   id: number;
@@ -346,7 +347,7 @@ function AnalyticsPanel({ jobs, candidates, isDark }: { jobs: JobRow[]; candidat
   const topSkills = useMemo(() => {
     const counts: Record<string, number> = {};
     jobs.forEach(j => j.required_skills.forEach(s => { counts[s] = (counts[s] || 0) + 1; }));
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count }));
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name: formatSkill(name), count }));
   }, [jobs]);
 
   const scoreDistribution = useMemo(() => {
@@ -363,7 +364,7 @@ function AnalyticsPanel({ jobs, candidates, isDark }: { jobs: JobRow[]; candidat
   const topCandidateSkills = useMemo(() => {
     const counts: Record<string, number> = {};
     candidates.forEach(c => (c.extracted_skills || []).forEach(s => { counts[s] = (counts[s] || 0) + 1; }));
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count }));
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name: formatSkill(name), count }));
   }, [candidates]);
 
   const avgScore = candidates.length
