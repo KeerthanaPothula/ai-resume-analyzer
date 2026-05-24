@@ -6,8 +6,17 @@ Supports Gmail (port 587 STARTTLS or 465 SSL) and any compatible SMTP provider.
 import asyncio
 import smtplib
 import ssl
+import traceback
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+# Windows: inject the OS certificate store so ssl can verify Google's cert.
+# Harmless on Linux/macOS where truststore is not installed.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
 
 from app.core.config import settings
 
@@ -36,12 +45,10 @@ _RESET_EMAIL_HTML = """\
           <!-- ── Header ── -->
           <tr>
             <td align="center" style="padding:36px 40px 28px;border-bottom:1px solid #334155;">
-              <!-- Logo badge (table-based gradient fallback for email clients) -->
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 16px;">
                 <tr>
                   <td style="background:linear-gradient(135deg,#0ea5e9 0%,#7c3aed 100%);
                               border-radius:14px;padding:12px;line-height:0;">
-                    <!-- Brain SVG icon -->
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
                          stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                          xmlns="http://www.w3.org/2000/svg">
@@ -132,7 +139,6 @@ _RESET_EMAIL_HTML = """\
           </tr>
 
         </table>
-        <!-- /Card -->
 
       </td>
     </tr>
@@ -155,18 +161,39 @@ def _build_html(to_email: str, reset_url: str, expire_minutes: int) -> str:
     )
 
 
+def _mask(value: str | None, show: int = 3) -> str:
+    """Return first `show` chars + asterisks — safe for logging."""
+    if not value:
+        return "(not set)"
+    return value[:show] + "*" * max(0, len(value) - show)
+
+
 def _send_sync(to_email: str, reset_url: str, expire_minutes: int) -> None:
-    """Blocking SMTP send — wrapped in asyncio.to_thread by the async caller."""
-    from_email = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or ""
+    """
+    Blocking SMTP send — wrapped in asyncio.to_thread by the async caller.
+    Prints step-by-step progress so failures are easy to diagnose in uvicorn logs.
+    """
+    host = settings.SMTP_HOST or ""
+    port = settings.SMTP_PORT
+    user = settings.SMTP_USER or ""
+    password = settings.SMTP_PASSWORD or ""
+    from_email = settings.EMAILS_FROM_EMAIL or user
     from_display = f"{settings.EMAILS_FROM_NAME} <{from_email}>"
 
+    print(f"\n[SMTP] -- Starting email send ------------------------------")
+    print(f"[SMTP]  to:       {to_email}")
+    print(f"[SMTP]  from:     {from_display}")
+    print(f"[SMTP]  host:     {host}:{port}")
+    print(f"[SMTP]  user:     {_mask(user)}")
+    print(f"[SMTP]  password: {_mask(password)}")
+
+    # Build message
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "Reset your Resume AI password"
     msg["From"] = from_display
     msg["To"] = to_email
 
     html_body = _build_html(to_email, reset_url, expire_minutes)
-    # Plain-text fallback for clients that don't render HTML
     text_body = (
         f"Reset your Resume AI password\n\n"
         f"Open this link to choose a new password (expires in {expire_minutes} minutes):\n"
@@ -177,24 +204,68 @@ def _send_sync(to_email: str, reset_url: str, expire_minutes: int) -> None:
     msg.attach(MIMEText(html_body, "html"))
 
     context = ssl.create_default_context()
-    host = settings.SMTP_HOST or ""
-    port = settings.SMTP_PORT
-    user = settings.SMTP_USER or ""
-    password = settings.SMTP_PASSWORD or ""
 
-    if port == 465:
-        # SSL from the start (e.g. Gmail alternate port)
-        with smtplib.SMTP_SSL(host, port, context=context) as server:
-            server.login(user, password)
-            server.sendmail(from_email, to_email, msg.as_string())
-    else:
-        # STARTTLS — standard for port 587
-        with smtplib.SMTP(host, port) as server:
-            server.ehlo()
-            server.starttls(context=context)
-            server.ehlo()
-            server.login(user, password)
-            server.sendmail(from_email, to_email, msg.as_string())
+    try:
+        if port == 465:
+            print(f"[SMTP]  method: SSL (port 465)")
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=15) as server:
+                print(f"[SMTP]  connected")
+                server.login(user, password)
+                print(f"[SMTP]  authenticated")
+                server.sendmail(from_email, [to_email], msg.as_string())
+                print(f"[SMTP]  sent OK")
+        else:
+            print(f"[SMTP]  method: STARTTLS (port {port})")
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                print(f"[SMTP]  connected")
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                print(f"[SMTP]  TLS established")
+                server.login(user, password)
+                print(f"[SMTP]  authenticated")
+                server.sendmail(from_email, [to_email], msg.as_string())
+                print(f"[SMTP]  sent OK")
+
+        print(f"[SMTP] -- Email delivered successfully ----------------------\n")
+
+    except smtplib.SMTPAuthenticationError as exc:
+        print(f"[SMTP] AUTH FAILED: {exc}")
+        print(f"[SMTP]   For Gmail: use an App Password (not your account password).")
+        print(f"[SMTP]   Enable 2-Step Verification, then visit:")
+        print(f"[SMTP]   https://myaccount.google.com/apppasswords")
+        raise
+
+    except smtplib.SMTPConnectError as exc:
+        print(f"[SMTP] CONNECTION FAILED: {exc}")
+        print(f"[SMTP]   Check SMTP_HOST ({host}) and SMTP_PORT ({port}).")
+        print(f"[SMTP]   Firewall / ISP may be blocking port {port}.")
+        raise
+
+    except smtplib.SMTPRecipientsRefused as exc:
+        print(f"[SMTP] RECIPIENT REFUSED: {exc}")
+        raise
+
+    except smtplib.SMTPSenderRefused as exc:
+        print(f"[SMTP] SENDER REFUSED: {exc}")
+        print(f"[SMTP]   For Gmail, EMAILS_FROM_EMAIL must match SMTP_USER.")
+        raise
+
+    except smtplib.SMTPException as exc:
+        print(f"[SMTP] SMTP ERROR ({type(exc).__name__}): {exc}")
+        print(traceback.format_exc())
+        raise
+
+    except OSError as exc:
+        print(f"[SMTP] NETWORK ERROR: {exc}")
+        print(f"[SMTP]   Cannot reach {host}:{port}. Check internet / DNS / firewall.")
+        print(traceback.format_exc())
+        raise
+
+    except Exception as exc:
+        print(f"[SMTP] UNEXPECTED ERROR ({type(exc).__name__}): {exc}")
+        print(traceback.format_exc())
+        raise
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -202,3 +273,60 @@ def _send_sync(to_email: str, reset_url: str, expire_minutes: int) -> None:
 async def send_reset_email(to_email: str, reset_url: str, expire_minutes: int) -> None:
     """Send a password-reset email via the configured SMTP server (non-blocking)."""
     await asyncio.to_thread(_send_sync, to_email, reset_url, expire_minutes)
+
+
+def smtp_connection_test() -> dict:
+    """
+    Synchronous SMTP connection test — returns a status dict.
+    Used by the /debug/smtp endpoint and test_smtp.py script.
+    """
+    host = settings.SMTP_HOST or ""
+    port = settings.SMTP_PORT
+    user = settings.SMTP_USER or ""
+    password = settings.SMTP_PASSWORD or ""
+
+    result: dict = {
+        "smtp_host": host or "(not configured)",
+        "smtp_port": port,
+        "smtp_user": _mask(user) if user else "(not configured)",
+        "emails_from": settings.EMAILS_FROM_EMAIL or user or "(not configured)",
+        "emails_from_name": settings.EMAILS_FROM_NAME,
+        "configured": bool(host and user and password),
+        "connection": None,
+        "auth": None,
+        "error": None,
+    }
+
+    if not result["configured"]:
+        result["error"] = "SMTP_HOST / SMTP_USER / SMTP_PASSWORD not all set in .env"
+        return result
+
+    context = ssl.create_default_context()
+    try:
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as server:
+                result["connection"] = "ok"
+                server.login(user, password)
+                result["auth"] = "ok"
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                result["connection"] = "ok"
+                server.login(user, password)
+                result["auth"] = "ok"
+    except smtplib.SMTPAuthenticationError as exc:
+        result["connection"] = "ok"
+        result["auth"] = f"FAILED: {exc}"
+        result["error"] = "Authentication failed — for Gmail use an App Password, not your account password"
+    except smtplib.SMTPConnectError as exc:
+        result["connection"] = f"FAILED: {exc}"
+        result["error"] = f"Cannot connect to {host}:{port}"
+    except OSError as exc:
+        result["connection"] = f"FAILED: {exc}"
+        result["error"] = f"Network error reaching {host}:{port}"
+    except Exception as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"
+
+    return result

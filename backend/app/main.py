@@ -104,3 +104,36 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+
+@app.get("/api/v1/debug/smtp", tags=["Debug"])
+def smtp_debug():
+    """
+    SMTP configuration + connection test.
+    Only available when DEBUG=True — returns 403 in production.
+    """
+    from fastapi import HTTPException as _HTTPException
+    if not settings.DEBUG:
+        raise _HTTPException(status_code=403, detail="Debug endpoints are disabled in production")
+    from app.services.email import smtp_connection_test
+    return smtp_connection_test()
+
+
+@app.post("/api/v1/debug/smtp/send-test", tags=["Debug"])
+async def smtp_send_test(to: str):
+    """
+    Send a real test email. Only available when DEBUG=True.
+    Usage: POST /api/v1/debug/smtp/send-test?to=you@example.com
+    """
+    from fastapi import HTTPException as _HTTPException
+    if not settings.DEBUG:
+        raise _HTTPException(status_code=403, detail="Debug endpoints are disabled in production")
+    if not settings.SMTP_HOST:
+        raise _HTTPException(status_code=400, detail="SMTP not configured — set SMTP_HOST in .env")
+    from app.services.email import send_reset_email
+    test_url = f"{settings.FRONTEND_URL}/reset-password?token=TEST_TOKEN_DEBUG"
+    try:
+        await send_reset_email(to, test_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
+        return {"status": "sent", "to": to}
+    except Exception as exc:
+        raise _HTTPException(status_code=500, detail=f"Send failed: {type(exc).__name__}: {exc}")
