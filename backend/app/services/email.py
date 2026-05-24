@@ -20,7 +20,7 @@ except ImportError:
 
 from app.core.config import settings
 
-# ── HTML template ──────────────────────────────────────────────────────────────
+# ── HTML templates ─────────────────────────────────────────────────────────────
 
 _RESET_EMAIL_HTML = """\
 <!DOCTYPE html>
@@ -28,21 +28,18 @@ _RESET_EMAIL_HTML = """\
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reset your Resume AI password</title>
+  <title>Reset your RecruitAI password</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
-  <!-- Outer wrapper -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0"
          style="background-color:#0f172a;padding:48px 16px;">
     <tr>
       <td align="center">
-
-        <!-- Card -->
         <table width="560" cellpadding="0" cellspacing="0" border="0"
                style="background-color:#1e293b;border-radius:16px;border:1px solid #334155;overflow:hidden;">
 
-          <!-- ── Header ── -->
+          <!-- Header -->
           <tr>
             <td align="center" style="padding:36px 40px 28px;border-bottom:1px solid #334155;">
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 16px;">
@@ -59,15 +56,15 @@ _RESET_EMAIL_HTML = """\
                 </tr>
               </table>
               <h1 style="margin:0;color:#f1f5f9;font-size:20px;font-weight:700;letter-spacing:-0.01em;">
-                Resume AI
+                RecruitAI
               </h1>
               <p style="margin:4px 0 0;color:#64748b;font-size:13px;">
-                AI Resume Intelligence Platform
+                AI Recruitment &amp; ATS Platform
               </p>
             </td>
           </tr>
 
-          <!-- ── Body ── -->
+          <!-- Body -->
           <tr>
             <td style="padding:40px 40px 32px;">
               <h2 style="margin:0 0 12px;color:#f1f5f9;font-size:22px;font-weight:700;">
@@ -79,7 +76,6 @@ _RESET_EMAIL_HTML = """\
                 Click the button below to choose a new password.
               </p>
 
-              <!-- CTA button -->
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 32px;">
                 <tr>
                   <td style="border-radius:10px;background:linear-gradient(135deg,#0ea5e9 0%,#7c3aed 100%);">
@@ -93,7 +89,6 @@ _RESET_EMAIL_HTML = """\
                 </tr>
               </table>
 
-              <!-- Fallback URL -->
               <p style="margin:0 0 8px;color:#64748b;font-size:13px;">
                 Button not working? Copy and paste this link into your browser:
               </p>
@@ -105,7 +100,6 @@ _RESET_EMAIL_HTML = """\
                 </a>
               </div>
 
-              <!-- Expiry warning -->
               <table cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
                   <td style="background:#431407;border:1px solid #7c2d12;border-radius:10px;
@@ -122,15 +116,15 @@ _RESET_EMAIL_HTML = """\
             </td>
           </tr>
 
-          <!-- ── Footer ── -->
+          <!-- Footer -->
           <tr>
             <td style="padding:20px 40px;border-top:1px solid #334155;text-align:center;">
               <p style="margin:0;color:#475569;font-size:12px;line-height:1.6;">
-                &copy; 2026 Resume AI &nbsp;&middot;&nbsp;
+                &copy; 2026 RecruitAI &nbsp;&middot;&nbsp;
                 This email was sent because a password reset was requested for
                 <span style="color:#64748b;">{{to_email}}</span>.<br/>
                 <a href="{{frontend_url}}" style="color:#38bdf8;text-decoration:none;">
-                  Visit Resume AI
+                  Visit RecruitAI
                 </a>
                 &nbsp;&middot;&nbsp;
                 If you have questions, reply to this email.
@@ -139,7 +133,133 @@ _RESET_EMAIL_HTML = """\
           </tr>
 
         </table>
+      </td>
+    </tr>
+  </table>
 
+</body>
+</html>
+"""
+
+_VERIFY_EMAIL_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify your RecruitAI email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#0f172a;padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" border="0"
+               style="background-color:#1e293b;border-radius:16px;border:1px solid #334155;overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding:36px 40px 28px;border-bottom:1px solid #334155;">
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 16px;">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#0ea5e9 0%,#7c3aed 100%);
+                              border-radius:14px;padding:12px;line-height:0;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                         stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+                      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+                    </svg>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0;color:#f1f5f9;font-size:20px;font-weight:700;letter-spacing:-0.01em;">
+                RecruitAI
+              </h1>
+              <p style="margin:4px 0 0;color:#64748b;font-size:13px;">
+                AI Recruitment &amp; ATS Platform
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+              <!-- Welcome icon -->
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+                <tr>
+                  <td style="background:#0c4a6e;border:1px solid #075985;border-radius:50%;
+                              width:60px;height:60px;text-align:center;vertical-align:middle;">
+                    <span style="font-size:28px;line-height:60px;">&#9993;</span>
+                  </td>
+                </tr>
+              </table>
+
+              <h2 style="margin:0 0 12px;color:#f1f5f9;font-size:22px;font-weight:700;">
+                Welcome, {{full_name}}!
+              </h2>
+              <p style="margin:0 0 24px;color:#94a3b8;font-size:15px;line-height:1.7;">
+                Thanks for signing up for RecruitAI. Click the button below to verify
+                <span style="color:#e2e8f0;">{{to_email}}</span> and activate your account.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 32px;">
+                <tr>
+                  <td style="border-radius:10px;background:linear-gradient(135deg,#0ea5e9 0%,#7c3aed 100%);">
+                    <a href="{{verify_url}}"
+                       style="display:inline-block;padding:15px 36px;color:#ffffff;
+                              text-decoration:none;font-size:15px;font-weight:600;
+                              letter-spacing:0.01em;border-radius:10px;">
+                      Verify Email Address
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;color:#64748b;font-size:13px;">
+                Button not working? Copy and paste this link into your browser:
+              </p>
+              <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;
+                          padding:12px 16px;margin:0 0 32px;word-break:break-all;">
+                <a href="{{verify_url}}"
+                   style="color:#38bdf8;font-size:12px;text-decoration:none;font-family:monospace;">
+                  {{verify_url}}
+                </a>
+              </div>
+
+              <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="background:#431407;border:1px solid #7c2d12;border-radius:10px;
+                              padding:14px 18px;">
+                    <p style="margin:0;color:#fdba74;font-size:13px;line-height:1.6;">
+                      &#9888;&nbsp; This link expires in <strong>24 hours</strong>.
+                      If you didn't create a RecruitAI account, you can safely ignore this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 40px;border-top:1px solid #334155;text-align:center;">
+              <p style="margin:0;color:#475569;font-size:12px;line-height:1.6;">
+                &copy; 2026 RecruitAI &nbsp;&middot;&nbsp;
+                This email was sent to
+                <span style="color:#64748b;">{{to_email}}</span>
+                because a new account was created with this address.<br/>
+                <a href="{{frontend_url}}" style="color:#38bdf8;text-decoration:none;">
+                  Visit RecruitAI
+                </a>
+                &nbsp;&middot;&nbsp;
+                If you have questions, reply to this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
       </td>
     </tr>
   </table>
@@ -151,16 +271,6 @@ _RESET_EMAIL_HTML = """\
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _build_html(to_email: str, reset_url: str, expire_minutes: int) -> str:
-    return (
-        _RESET_EMAIL_HTML
-        .replace("{{to_email}}", to_email)
-        .replace("{{reset_url}}", reset_url)
-        .replace("{{expire_minutes}}", str(expire_minutes))
-        .replace("{{frontend_url}}", settings.FRONTEND_URL)
-    )
-
-
 def _mask(value: str | None, show: int = 3) -> str:
     """Return first `show` chars + asterisks — safe for logging."""
     if not value:
@@ -168,40 +278,24 @@ def _mask(value: str | None, show: int = 3) -> str:
     return value[:show] + "*" * max(0, len(value) - show)
 
 
-def _send_sync(to_email: str, reset_url: str, expire_minutes: int) -> None:
+def _dispatch(msg: MIMEMultipart, to_email: str) -> None:
     """
-    Blocking SMTP send — wrapped in asyncio.to_thread by the async caller.
-    Prints step-by-step progress so failures are easy to diagnose in uvicorn logs.
+    Send a pre-built MIME message via the configured SMTP server.
+    Shared by all outgoing email functions.
     """
     host = settings.SMTP_HOST or ""
     port = settings.SMTP_PORT
     user = settings.SMTP_USER or ""
     password = settings.SMTP_PASSWORD or ""
     from_email = settings.EMAILS_FROM_EMAIL or user
-    from_display = f"{settings.EMAILS_FROM_NAME} <{from_email}>"
 
     print(f"\n[SMTP] -- Starting email send ------------------------------")
     print(f"[SMTP]  to:       {to_email}")
-    print(f"[SMTP]  from:     {from_display}")
+    print(f"[SMTP]  from:     {msg['From']}")
+    print(f"[SMTP]  subject:  {msg['Subject']}")
     print(f"[SMTP]  host:     {host}:{port}")
     print(f"[SMTP]  user:     {_mask(user)}")
     print(f"[SMTP]  password: {_mask(password)}")
-
-    # Build message
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Reset your Resume AI password"
-    msg["From"] = from_display
-    msg["To"] = to_email
-
-    html_body = _build_html(to_email, reset_url, expire_minutes)
-    text_body = (
-        f"Reset your Resume AI password\n\n"
-        f"Open this link to choose a new password (expires in {expire_minutes} minutes):\n"
-        f"{reset_url}\n\n"
-        f"If you didn't request this, ignore this email.\n"
-    )
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
 
     context = ssl.create_default_context()
 
@@ -268,17 +362,78 @@ def _send_sync(to_email: str, reset_url: str, expire_minutes: int) -> None:
         raise
 
 
+def _build_reset_msg(to_email: str, reset_url: str, expire_minutes: int) -> MIMEMultipart:
+    from_email = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or ""
+    from_display = f"{settings.EMAILS_FROM_NAME} <{from_email}>"
+
+    html_body = (
+        _RESET_EMAIL_HTML
+        .replace("{{to_email}}", to_email)
+        .replace("{{reset_url}}", reset_url)
+        .replace("{{expire_minutes}}", str(expire_minutes))
+        .replace("{{frontend_url}}", settings.FRONTEND_URL)
+    )
+    text_body = (
+        f"Reset your RecruitAI password\n\n"
+        f"Open this link to choose a new password (expires in {expire_minutes} minutes):\n"
+        f"{reset_url}\n\n"
+        f"If you didn't request this, ignore this email.\n"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Reset your RecruitAI password"
+    msg["From"] = from_display
+    msg["To"] = to_email
+    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+    return msg
+
+
+def _build_verify_msg(to_email: str, full_name: str, verify_url: str) -> MIMEMultipart:
+    from_email = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or ""
+    from_display = f"{settings.EMAILS_FROM_NAME} <{from_email}>"
+
+    html_body = (
+        _VERIFY_EMAIL_HTML
+        .replace("{{to_email}}", to_email)
+        .replace("{{full_name}}", full_name)
+        .replace("{{verify_url}}", verify_url)
+        .replace("{{frontend_url}}", settings.FRONTEND_URL)
+    )
+    text_body = (
+        f"Welcome to RecruitAI, {full_name}!\n\n"
+        f"Click the link below to verify your email address (expires in 24 hours):\n"
+        f"{verify_url}\n\n"
+        f"If you didn't create a RecruitAI account, you can safely ignore this email.\n"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Verify your RecruitAI email address"
+    msg["From"] = from_display
+    msg["To"] = to_email
+    msg.attach(MIMEText(text_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+    return msg
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def send_reset_email(to_email: str, reset_url: str, expire_minutes: int) -> None:
     """Send a password-reset email via the configured SMTP server (non-blocking)."""
-    await asyncio.to_thread(_send_sync, to_email, reset_url, expire_minutes)
+    msg = _build_reset_msg(to_email, reset_url, expire_minutes)
+    await asyncio.to_thread(_dispatch, msg, to_email)
+
+
+async def send_verification_email(to_email: str, full_name: str, verify_url: str) -> None:
+    """Send an email verification link via the configured SMTP server (non-blocking)."""
+    msg = _build_verify_msg(to_email, full_name, verify_url)
+    await asyncio.to_thread(_dispatch, msg, to_email)
 
 
 def smtp_connection_test() -> dict:
     """
     Synchronous SMTP connection test — returns a status dict.
-    Used by the /debug/smtp endpoint and test_smtp.py script.
+    Used by the /debug/smtp endpoint.
     """
     host = settings.SMTP_HOST or ""
     port = settings.SMTP_PORT

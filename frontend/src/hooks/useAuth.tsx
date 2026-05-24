@@ -90,10 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string;
       role: string;
     }) => {
-      const res = await authApi.register(data);
-      const { access_token, refresh_token, user } = res.data;
-      persistTokens(access_token, refresh_token);
-      setState({ user, token: access_token, isAuthenticated: true });
+      // Registration now requires email verification before login is permitted.
+      // The backend returns a message + email only — no tokens are issued yet.
+      await authApi.register(data);
     },
     []
   );

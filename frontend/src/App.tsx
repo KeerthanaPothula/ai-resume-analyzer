@@ -10,8 +10,10 @@ import { useThemeStore, applyTheme } from "./stores/themeStore";
 const Landing          = lazy(() => import("./pages/Landing"));
 const Login            = lazy(() => import("./pages/Login"));
 const Register         = lazy(() => import("./pages/Register"));
-const ForgotPassword   = lazy(() => import("./pages/ForgotPassword"));
-const ResetPassword    = lazy(() => import("./pages/ResetPassword"));
+const ForgotPassword        = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword         = lazy(() => import("./pages/ResetPassword"));
+const VerificationPending   = lazy(() => import("./pages/VerificationPending"));
+const VerifyEmail           = lazy(() => import("./pages/VerifyEmail"));
 const CandidateDashboard = lazy(() => import("./pages/CandidateDashboard"));
 const RecruiterDashboard = lazy(() => import("./pages/RecruiterDashboard"));
 const ResumeUpload     = lazy(() => import("./pages/ResumeUpload"));
@@ -72,8 +74,10 @@ function AppRoutes() {
         <Route path="/"                  element={<Landing />} />
         <Route path="/login"             element={<Login />} />
         <Route path="/register"          element={<Register />} />
-        <Route path="/forgot-password"   element={<ForgotPassword />} />
-        <Route path="/reset-password"    element={<ResetPassword />} />
+        <Route path="/forgot-password"        element={<ForgotPassword />} />
+        <Route path="/reset-password"         element={<ResetPassword />} />
+        <Route path="/verification-pending"   element={<VerificationPending />} />
+        <Route path="/verify-email"           element={<VerifyEmail />} />
 
         <Route path="/dashboard" element={
           <ProtectedRoute><DashboardRedirect /></ProtectedRoute>

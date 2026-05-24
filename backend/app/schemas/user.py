@@ -67,6 +67,14 @@ class ResetPasswordRequest(BaseModel):
         return v
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
 # ── Response bodies ────────────────────────────────────────────────────────────
 
 class UserResponse(BaseModel):

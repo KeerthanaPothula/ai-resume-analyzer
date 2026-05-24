@@ -21,18 +21,20 @@ from app.models.user import User
 from app.schemas.user import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     Token,
     TokenPair,
     TokenRefresh,
     UserCreate,
     UserResponse,
+    VerifyEmailRequest,
 )
 
 router = APIRouter()
 
 
-# ── Internal helper ────────────────────────────────────────────────────────────
+# ── Internal helpers ───────────────────────────────────────────────────────────
 
 def _issue_token_pair(user: User, db: Session) -> dict:
     """Create a fresh access + refresh pair, persist the refresh hash, return dict."""
@@ -53,12 +55,24 @@ def _issue_token_pair(user: User, db: Session) -> dict:
     }
 
 
+def _create_verification_token(user: User, db: Session) -> str:
+    """Generate a verification token, store its hash on the user, return the raw token."""
+    raw_token = secrets.token_urlsafe(32)
+    user.email_verification_token_hash = hash_token(raw_token)
+    user.email_verification_token_expires = (
+        datetime.now(timezone.utc)
+        + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
+    )
+    db.add(user)
+    db.commit()
+    return raw_token
+
+
 # ── POST /register ─────────────────────────────────────────────────────────────
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
-    # Guard: users cannot self-assign privileged roles (e.g. admin)
     if user_data.role.value not in settings.ALLOWED_REGISTRATION_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -73,12 +87,35 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
         full_name=user_data.full_name,
         role=user_data.role,
         hashed_password=get_password_hash(user_data.password),
+        email_verified=False,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    return _issue_token_pair(user, db)
+    raw_token = _create_verification_token(user, db)
+    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
+
+    if settings.SMTP_HOST:
+        try:
+            from app.services.email import send_verification_email
+            await send_verification_email(user.email, user.full_name, verify_url)
+        except Exception as exc:
+            print(f"[ERROR] Failed to send verification email to {user.email}: {exc}")
+    else:
+        print(f"\n{'='*60}")
+        print(f"[DEV] New registration: {user.email}")
+        print(f"[DEV] Verify URL (valid {settings.VERIFICATION_TOKEN_EXPIRE_HOURS}h):")
+        print(f"      {verify_url}")
+        print(f"{'='*60}\n")
+
+    response: dict = {
+        "message": "Account created! Please check your email to verify your account before signing in.",
+        "email": user.email,
+    }
+    if not settings.SMTP_HOST:
+        response["dev_verify_url"] = verify_url
+    return response
 
 
 # ── POST /login ────────────────────────────────────────────────────────────────
@@ -102,6 +139,9 @@ async def login(
 
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
+
+    if not user.email_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="email_not_verified")
 
     return _issue_token_pair(user, db)
 
@@ -208,7 +248,6 @@ async def forgot_password(
             from app.services.email import send_reset_email
             await send_reset_email(user.email, reset_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
         except Exception as exc:
-            # Log the error but don't reveal it to the caller (prevents info leakage)
             print(f"[ERROR] Failed to send reset email to {user.email}: {exc}")
         return generic_response
     else:
@@ -262,3 +301,96 @@ async def reset_password(
     db.commit()
 
     return {"message": "Password reset successfully. You can now log in with your new password."}
+
+
+# ── POST /verify-email ─────────────────────────────────────────────────────────
+
+@router.post("/verify-email", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
+async def verify_email(
+    request: Request,
+    body: VerifyEmailRequest,
+    db: Session = Depends(get_db),
+):
+    token_hash = hash_token(body.token)
+    user = db.query(User).filter(User.email_verification_token_hash == token_hash).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification link.",
+        )
+
+    if user.email_verified:
+        user.email_verification_token_hash = None
+        user.email_verification_token_expires = None
+        db.add(user)
+        db.commit()
+        return {"message": "Email already verified. You can sign in."}
+
+    now = datetime.now(timezone.utc)
+    expires = user.email_verification_token_expires
+    if expires is not None and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires is None or now > expires:
+        user.email_verification_token_hash = None
+        user.email_verification_token_expires = None
+        db.add(user)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification link has expired. Please request a new one.",
+        )
+
+    user.email_verified = True
+    user.email_verification_token_hash = None
+    user.email_verification_token_expires = None
+    db.add(user)
+    db.commit()
+
+    return {"message": "Email verified successfully. You can now sign in."}
+
+
+# ── POST /resend-verification ──────────────────────────────────────────────────
+
+@router.post("/resend-verification", status_code=status.HTTP_200_OK)
+@limiter.limit("3/minute")
+async def resend_verification(
+    request: Request,
+    body: ResendVerificationRequest,
+    db: Session = Depends(get_db),
+):
+    generic_response = {
+        "message": "If that email is registered and unverified, a new verification link has been sent."
+    }
+
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user or not user.is_active or user.email_verified:
+        return generic_response
+
+    # Per-user cooldown: don't resend if the last token is less than 60 seconds old
+    if user.email_verification_token_expires is not None:
+        expires = user.email_verification_token_expires
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        issued_at = expires - timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
+        if datetime.now(timezone.utc) - issued_at < timedelta(seconds=60):
+            return generic_response  # Silently rate-limited
+
+    raw_token = _create_verification_token(user, db)
+    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
+
+    if settings.SMTP_HOST:
+        try:
+            from app.services.email import send_verification_email
+            await send_verification_email(user.email, user.full_name, verify_url)
+        except Exception as exc:
+            print(f"[ERROR] Failed to resend verification email to {user.email}: {exc}")
+        return generic_response
+    else:
+        print(f"\n{'='*60}")
+        print(f"[DEV] Resend verification for: {user.email}")
+        print(f"[DEV] Verify URL (valid {settings.VERIFICATION_TOKEN_EXPIRE_HOURS}h):")
+        print(f"      {verify_url}")
+        print(f"{'='*60}\n")
+        return {**generic_response, "dev_verify_url": verify_url}

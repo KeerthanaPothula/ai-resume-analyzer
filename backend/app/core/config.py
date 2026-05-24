@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     ALLOWED_REGISTRATION_ROLES: List[str] = ["candidate", "recruiter"]
 
     # App
-    APP_NAME: str = "AI Resume Intelligence Platform"
+    APP_NAME: str = "RecruitAI"
     DEBUG: bool = False
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 10
@@ -38,9 +38,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
-    # Password reset
+    # Password reset / Email verification
     FRONTEND_URL: str = "http://localhost:5173"
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
 
     # SMTP (optional — if unset, reset URL is printed to console for dev)
     SMTP_HOST: Optional[str] = None
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     # Sender address — defaults to SMTP_USER when not set (required for Gmail)
     EMAILS_FROM_EMAIL: Optional[str] = None
-    EMAILS_FROM_NAME: str = "Resume AI"
+    EMAILS_FROM_NAME: str = "RecruitAI"
 
 
 settings = Settings()

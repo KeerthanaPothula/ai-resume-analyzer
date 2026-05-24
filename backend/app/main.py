@@ -54,6 +54,23 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     pass  # Column already exists — safe to ignore
 
+            # Email verification columns — grandfather all pre-existing users as verified
+            # so accounts created before this feature don't get locked out.
+            try:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN email_verification_token_hash VARCHAR"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN email_verification_token_expires DATETIME"
+                ))
+                conn.commit()
+                conn.execute(text(
+                    "UPDATE users SET email_verified = 1 WHERE email_verified = 0"
+                ))
+                conn.commit()
+            except Exception:
+                pass  # Columns already exist — migration already ran
+
             # Add is_applied column to track real applications vs recruiter-ranked entries.
             # On first run: delete ALL corrupt CandidateRanking rows that were created by
             # the "Rank All" button (which incorrectly ranked every resume in the system).

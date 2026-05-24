@@ -90,8 +90,7 @@ export default function Register() {
     setLoading(true);
     try {
       await register({ full_name: fullName, email, password, role });
-      toast.success("Account created! Welcome aboard.");
-      navigate("/dashboard");
+      navigate(`/verification-pending?email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??

@@ -97,6 +97,24 @@ npm install && npm run dev
 
 ---
 
+## Email Verification
+
+Registration requires a verified email before sign-in is permitted.
+
+**Flow:**
+1. User registers → account created with `email_verified = false`
+2. Verification email sent immediately (or printed to terminal in dev mode)
+3. User clicks the link → backend verifies token, marks account verified
+4. Login blocked with redirect to the resend page until verified
+
+**Dev mode** (no SMTP): the verification URL prints to the uvicorn terminal and is returned in the register response as `dev_verify_url`.
+
+**Production** (SMTP configured): set `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` in `.env` — same credentials used by the password reset flow.
+
+**Security:** 32-byte random tokens stored as SHA-256 hashes; single-use; 24-hour expiry; 60-second per-user resend cooldown; IP rate-limited; generic responses prevent email enumeration. Existing accounts are grandfathered as verified on first migration.
+
+---
+
 ## What's Next
 
 - [ ] Email notifications on pipeline status changes

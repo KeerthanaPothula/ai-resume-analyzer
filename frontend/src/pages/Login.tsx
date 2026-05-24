@@ -42,10 +42,13 @@ export default function Login() {
       toast.success("Welcome back!");
       navigate("/dashboard");
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Login failed. Check your credentials.";
-      toast.error(msg);
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      if (detail === "email_not_verified") {
+        navigate(`/verification-pending?email=${encodeURIComponent(email)}`);
+      } else {
+        toast.error(detail ?? "Login failed. Check your credentials.");
+      }
     } finally {
       setLoading(false);
     }

@@ -31,6 +31,10 @@ class User(Base):
     reset_token_hash = Column(String, nullable=True)
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)
 
+    # Email verification
+    email_verification_token_hash = Column(String, nullable=True)
+    email_verification_token_expires = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
