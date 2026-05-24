@@ -4,7 +4,7 @@ from typing import List
 
 from app.db.database import get_db
 from app.models.user import User
-from app.models.job import JobDescription
+from app.models.job import JobDescription, ATSScore, CandidateRanking
 from app.schemas.resume import JobDescriptionCreate, JobDescriptionResponse
 from app.core.security import get_current_active_user
 from app.services.ai.skill_extractor import extract_skills_from_text
@@ -116,5 +116,8 @@ def delete_job(
         raise HTTPException(status_code=404, detail="Job not found")
     if job.recruiter_id != current_user.id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
+    # Cascade: remove ATS scores and rankings that reference this job
+    db.query(ATSScore).filter(ATSScore.job_id == job_id).delete()
+    db.query(CandidateRanking).filter(CandidateRanking.job_id == job_id).delete()
     db.delete(job)
     db.commit()

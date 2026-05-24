@@ -70,6 +70,22 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass  # Column already exists — migration already ran, data is clean
 
+            # Self-healing: remove resumes whose physical file is gone from disk.
+            # Must run BEFORE orphan cleanup so the next steps catch the newly
+            # deleted resume IDs in one pass.
+            try:
+                import os as _os
+                rows = conn.execute(text("SELECT id, file_path FROM resumes")).fetchall()
+                missing_ids = [r[0] for r in rows if not r[1] or not _os.path.exists(r[1])]
+                if missing_ids:
+                    id_list = ",".join(str(i) for i in missing_ids)
+                    conn.execute(text(f"DELETE FROM ats_scores WHERE resume_id IN ({id_list})"))
+                    conn.execute(text(f"DELETE FROM candidate_rankings WHERE resume_id IN ({id_list})"))
+                    conn.execute(text(f"DELETE FROM resumes WHERE id IN ({id_list})"))
+                    conn.commit()
+            except Exception:
+                pass
+
             # Orphan cleanup: remove ATS scores and rankings whose resume or job
             # no longer exists. Safe to run on every startup — only touches truly
             # broken rows; valid data is never affected.
@@ -83,6 +99,11 @@ async def lifespan(app: FastAPI):
                     "DELETE FROM candidate_rankings "
                     "WHERE resume_id NOT IN (SELECT id FROM resumes) "
                     "OR job_id NOT IN (SELECT id FROM job_descriptions)"
+                ))
+                # Remove notifications for users that no longer exist
+                conn.execute(text(
+                    "DELETE FROM notifications "
+                    "WHERE user_id NOT IN (SELECT id FROM users)"
                 ))
                 conn.commit()
             except Exception:

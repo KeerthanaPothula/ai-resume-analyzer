@@ -7,6 +7,7 @@ from typing import List
 from app.db.database import get_db
 from app.models.user import User
 from app.models.resume import Resume
+from app.models.job import ATSScore, CandidateRanking
 from app.schemas.resume import ResumeResponse
 from app.core.security import get_current_active_user
 from app.core.config import settings
@@ -166,5 +167,8 @@ def delete_resume(
         raise HTTPException(status_code=403, detail="Not authorized")
     if os.path.exists(resume.file_path):
         os.remove(resume.file_path)
+    # Cascade: remove ATS scores and rankings that reference this resume
+    db.query(ATSScore).filter(ATSScore.resume_id == resume_id).delete()
+    db.query(CandidateRanking).filter(CandidateRanking.resume_id == resume_id).delete()
     db.delete(resume)
     db.commit()
