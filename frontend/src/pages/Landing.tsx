@@ -106,7 +106,7 @@ const testimonials = [
     name: 'Sarah M.',
     role: 'Software Engineer',
     company: 'Got hired at a Series B startup',
-    quote: 'Resume AI showed me exactly which skills were missing from my resume. After adding them, my ATS score went from 54 to 83 — and I landed 3 interviews in a week.',
+    quote: 'RecruitAI showed me exactly which skills were missing from my resume. After adding them, my ATS score went from 54 to 83 — and I landed 3 interviews in a week.',
     score: 83,
     avatar: 'SM',
     color: 'from-sky-500 to-violet-500',
@@ -195,8 +195,8 @@ export default function Landing() {
               <Brain className="w-5 h-5 text-white" />
             </div>
             <div>
-              <span className="font-bold text-white text-sm leading-none block">Resume AI</span>
-              <span className="text-[10px] text-slate-500">Intelligence Platform</span>
+              <span className="font-bold text-white text-sm leading-none block">RecruitAI</span>
+              <span className="text-[10px] text-slate-500">Recruitment & ATS Platform</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -409,7 +409,7 @@ export default function Landing() {
           <motion.div {...fadeUp()} className="text-center mb-14">
             <p className="text-violet-400 text-sm font-semibold uppercase tracking-widest mb-3">Results</p>
             <h2 className="text-4xl font-bold text-white mb-4">Real People. Real Results.</h2>
-            <p className="text-slate-400 text-lg">See how Resume AI has helped candidates and recruiters.</p>
+            <p className="text-slate-400 text-lg">See how RecruitAI has helped candidates land roles and recruiters hire faster.</p>
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -541,7 +541,7 @@ export default function Landing() {
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500 to-violet-600 flex items-center justify-center">
               <Brain className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-bold text-sm text-white">Resume AI</span>
+            <span className="font-bold text-sm text-white">RecruitAI</span>
             <span className="text-slate-600 text-sm ml-2">© 2025</span>
           </div>
           <div className="flex items-center gap-6 text-slate-500 text-sm">

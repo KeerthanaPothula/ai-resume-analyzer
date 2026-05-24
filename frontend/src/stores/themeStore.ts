@@ -17,7 +17,7 @@ export const useThemeStore = create<ThemeStore>()(
         set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
       setTheme: (theme) => set({ theme }),
     }),
-    { name: "resume-ai-theme" }
+    { name: "recruitai-theme" }
   )
 );
 

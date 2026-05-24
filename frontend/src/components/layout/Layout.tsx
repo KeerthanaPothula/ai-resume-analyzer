@@ -149,10 +149,10 @@ function SidebarContent({ onClose }: SidebarContentProps) {
           </div>
           <div>
             <p className="font-bold text-sm leading-none" style={{ color: "var(--text-primary)" }}>
-              Resume AI
+              RecruitAI
             </p>
             <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-              Intelligence Platform
+              Recruitment & ATS Platform
             </p>
           </div>
         </Link>

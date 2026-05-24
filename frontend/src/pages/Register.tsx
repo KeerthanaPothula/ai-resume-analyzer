@@ -123,7 +123,7 @@ export default function Register() {
               <Brain className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white">Create account</h1>
-            <p className="text-slate-400 text-sm mt-1">Join the AI Resume Platform</p>
+            <p className="text-slate-400 text-sm mt-1">Join RecruitAI — start hiring smarter</p>
           </div>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
