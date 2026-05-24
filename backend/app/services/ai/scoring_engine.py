@@ -1,20 +1,37 @@
 import re
+import threading
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Lazy-load heavy models
 _embedding_model = None
+_model_load_attempted = False
 
 
 def get_embedding_model():
-    global _embedding_model
-    if _embedding_model is None:
+    global _embedding_model, _model_load_attempted
+    if _model_load_attempted:
+        return _embedding_model
+    _model_load_attempted = True
+
+    result = [None]
+
+    def _load():
         try:
+            import os
+            os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
             from sentence_transformers import SentenceTransformer
-            _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            result[0] = SentenceTransformer("all-MiniLM-L6-v2")
         except Exception:
-            _embedding_model = None
+            result[0] = None
+
+    t = threading.Thread(target=_load, daemon=True)
+    t.start()
+    # Allow up to 60 s for first-time download; subsequent calls return immediately
+    t.join(timeout=60)
+
+    _embedding_model = result[0]
     return _embedding_model
 
 

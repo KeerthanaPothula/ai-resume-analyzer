@@ -5,19 +5,20 @@ alembic==1.13.1
 psycopg2-binary==2.9.9
 pydantic==2.6.1
 pydantic-settings==2.2.0
+pydantic[email]==2.6.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 python-multipart==0.0.9
 python-docx==1.1.0
 PyMuPDF==1.23.26
-spacy==3.7.4
 sentence-transformers==2.5.1
 scikit-learn==1.4.0
 numpy==1.26.4
-faiss-cpu==1.7.4
 httpx==0.26.0
 aiofiles==23.2.1
 Pillow==10.2.0
+slowapi==0.1.9
 
 # LLM providers (install whichever you use; both are optional)
 openai>=1.0.0
