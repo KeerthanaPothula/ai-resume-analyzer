@@ -54,6 +54,22 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     pass  # Column already exists — safe to ignore
 
+            # Add is_applied column to track real applications vs recruiter-ranked entries.
+            # On first run: delete ALL corrupt CandidateRanking rows that were created by
+            # the "Rank All" button (which incorrectly ranked every resume in the system).
+            # Going forward only POST /applications/apply creates valid ranking rows.
+            try:
+                conn.execute(text(
+                    "ALTER TABLE candidate_rankings ADD COLUMN is_applied BOOLEAN NOT NULL DEFAULT 1"
+                ))
+                conn.commit()
+                # Purge every existing ranking — they were all created by the buggy
+                # "rank all resumes" flow, not by genuine candidate applications.
+                conn.execute(text("DELETE FROM candidate_rankings"))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists — migration already ran, data is clean
+
     yield
 
 

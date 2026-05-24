@@ -98,6 +98,7 @@ def apply_to_job(
         score=ats.overall_score,
         application_status=ApplicationStatus.applied,
         shortlisted=False,
+        is_applied=True,
     )
     db.add(ranking)
     db.flush()

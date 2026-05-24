@@ -17,9 +17,9 @@ import Layout from '../components/layout/Layout';
 import SkillBadge from '../components/ui/SkillBadge';
 import ScoreRing from '../components/ui/ScoreRing';
 import EmptyState from '../components/ui/EmptyState';
-import { jobApi, resumeApi, rankingApi } from '../lib/api';
+import { jobApi, rankingApi } from '../lib/api';
 import {
-  JobDescription, Resume,
+  JobDescription,
   ApplicationStatus, APPLICATION_STATUS_LABELS, APPLICATION_STATUS_COLORS,
   APPLICATION_STATUS_ORDER, RankingEntry,
 } from '../types';
@@ -394,7 +394,6 @@ export default function CandidateRanking() {
   const isDark = theme === 'dark';
 
   const [job, setJob] = useState<JobDescription | null>(null);
-  const [allResumes, setAllResumes] = useState<Resume[]>([]);
   const [rankings, setRankings] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState(false);
@@ -442,16 +441,12 @@ export default function CandidateRanking() {
     if (!jobId) return;
     setLoading(true);
     try {
-      const [jobRes, resumesRes, rankRes] = await Promise.all([
+      const [jobRes, rankRes] = await Promise.all([
         jobApi.get(parseInt(jobId)),
-        resumeApi.list(),
         rankingApi.getForJob(parseInt(jobId)),
       ]);
       setJob(jobRes.data);
-      setAllResumes(resumesRes.data);
-      if (rankRes.data.length) {
-        setRankings(rankRes.data.map(mapRow));
-      }
+      setRankings(rankRes.data.map(mapRow));
     } catch {
       toast.error('Failed to load data');
     } finally {
@@ -462,11 +457,11 @@ export default function CandidateRanking() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleRankAll = async () => {
-    if (!jobId || allResumes.length === 0) return toast.error('No resumes to rank');
+    if (!jobId || rankings.length === 0) return toast.error('No applicants to rank');
     setRanking(true);
     try {
-      await rankingApi.rank(parseInt(jobId), allResumes.map(r => r.id));
-      toast.success(`Ranked ${allResumes.length} candidates!`);
+      await rankingApi.rank(parseInt(jobId), rankings.map(r => r.resume_id));
+      toast.success(`Re-ranked ${rankings.length} applicant${rankings.length !== 1 ? 's' : ''}!`);
       await loadData();
     } catch {
       toast.error('Ranking failed');
@@ -585,17 +580,19 @@ export default function CandidateRanking() {
               </p>
             )}
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-              {allResumes.length} in pool · {rankings.length} ranked · {shortlistedCount} shortlisted · {interviewCount} interviewing · {acceptedCount} accepted
+              {rankings.length} applicant{rankings.length !== 1 ? 's' : ''} · {shortlistedCount} shortlisted · {interviewCount} interviewing · {acceptedCount} accepted
             </p>
           </div>
-          <button
-            onClick={handleRankAll}
-            disabled={ranking || allResumes.length === 0}
-            className="btn-primary self-start md:self-auto"
-          >
-            {ranking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {ranking ? 'Ranking…' : rankings.length ? 'Re-rank All' : 'Rank Candidates'}
-          </button>
+          {rankings.length > 0 && (
+            <button
+              onClick={handleRankAll}
+              disabled={ranking}
+              className="btn-primary self-start md:self-auto"
+            >
+              {ranking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {ranking ? 'Ranking…' : 'Re-rank Applicants'}
+            </button>
+          )}
         </div>
 
         {/* Required skills */}
@@ -610,13 +607,8 @@ export default function CandidateRanking() {
           <div className="card">
             <EmptyState
               icon={Users}
-              title="No rankings yet"
-              description={
-                allResumes.length === 0
-                  ? "No resumes in the system yet. Candidates need to upload their resumes first."
-                  : `Click "Rank Candidates" to AI-score all ${allResumes.length} resume${allResumes.length !== 1 ? 's' : ''} against this job.`
-              }
-              action={allResumes.length > 0 ? { label: 'Rank Candidates', onClick: handleRankAll } : undefined}
+              title="No applicants yet"
+              description="No candidates have applied to this job. Applicants will appear here after they submit an application."
             />
           </div>
         ) : (

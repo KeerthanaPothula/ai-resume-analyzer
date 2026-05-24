@@ -83,6 +83,9 @@ class CandidateRanking(Base):
     meeting_link = Column(String, nullable=True)
     interview_instructions = Column(Text, nullable=True)
 
+    # True = candidate explicitly applied via the apply button; False = legacy/invalid
+    is_applied = Column(Boolean, default=True, nullable=False, server_default="1")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

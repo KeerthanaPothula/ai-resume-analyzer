@@ -71,6 +71,23 @@ def rank_candidates_for_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Only re-rank resumes that have actually applied to this job.
+    # Reject any IDs that don't have an is_applied=True record — this prevents
+    # the old "rank all resumes in the system" behaviour.
+    applied_ids = {
+        r.resume_id
+        for r in db.query(CandidateRanking).filter(
+            CandidateRanking.job_id == job_id,
+            CandidateRanking.is_applied == True,
+        ).all()
+    }
+    resume_ids = [rid for rid in resume_ids if rid in applied_ids]
+    if not resume_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No applicants to rank. Candidates must apply to this job first.",
+        )
+
     results = []
     for resume_id in resume_ids:
         resume = db.query(Resume).filter(Resume.id == resume_id).first()
@@ -138,6 +155,7 @@ def rank_candidates_for_job(
             resume_id=result["resume"].id,
             rank=rank_idx,
             score=result["score"],
+            is_applied=True,  # always a real applicant at this point
             # Preserve recruiter decisions across re-ranks
             application_status=prev.application_status if prev else ApplicationStatus.applied,
             shortlisted=prev.shortlisted if prev else False,
@@ -178,7 +196,10 @@ def get_rankings_for_job(
 ):
     rankings = (
         db.query(CandidateRanking)
-        .filter(CandidateRanking.job_id == job_id)
+        .filter(
+            CandidateRanking.job_id == job_id,
+            CandidateRanking.is_applied == True,
+        )
         .order_by(CandidateRanking.rank)
         .all()
     )
@@ -209,7 +230,10 @@ def get_my_applications(
 
     rankings = (
         db.query(CandidateRanking)
-        .filter(CandidateRanking.resume_id.in_(resume_ids))
+        .filter(
+            CandidateRanking.resume_id.in_(resume_ids),
+            CandidateRanking.is_applied == True,
+        )
         .order_by(CandidateRanking.updated_at.desc().nullslast(), CandidateRanking.created_at.desc())
         .all()
     )
