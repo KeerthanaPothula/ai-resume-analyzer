@@ -49,15 +49,27 @@ async def lifespan(app: FastAPI):
     logger.info("=== RecruitAI startup ===")
     logger.info("DATABASE_URL driver: %s", settings.DATABASE_URL.split("://")[0])
     logger.info("FRONTEND_URL: %s", settings.FRONTEND_URL)
-    logger.info("ALLOWED_ORIGINS: %s", settings.ALLOWED_ORIGINS)
     logger.info("SMTP configured: %s", bool(settings.SMTP_HOST))
     logger.info("LLM_PROVIDER: %s", settings.LLM_PROVIDER)
-    if "your-frontend" in settings.FRONTEND_URL or settings.FRONTEND_URL == "http://localhost:5173":
+
+    # ── CORS diagnostic — always visible in Render logs ──────────────────────
+    logger.info("CORS allowed origins (%d):", len(settings.ALLOWED_ORIGINS))
+    for origin in settings.ALLOWED_ORIGINS:
+        logger.info("  · %s", origin)
+
+    _frontend_placeholder = (
+        "your-frontend" in settings.FRONTEND_URL
+        or settings.FRONTEND_URL in ("http://localhost:5173", "http://localhost:5174")
+    )
+    if _frontend_placeholder:
         logger.warning(
-            "FRONTEND_URL looks like a placeholder or local dev value ('%s'). "
-            "Update it in the Render dashboard to your real Vercel URL so CORS and email links work.",
+            "⚠ CORS WARNING: FRONTEND_URL is '%s' — looks like a placeholder or local dev value. "
+            "Set FRONTEND_URL=https://your-app.vercel.app in the Render dashboard, then redeploy. "
+            "Until then, your real Vercel domain is NOT in the CORS allow-list and preflight requests will fail.",
             settings.FRONTEND_URL,
         )
+    else:
+        logger.info("CORS: FRONTEND_URL is a real URL — Vercel domain should pass preflight.")
 
     if settings.DATABASE_URL.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
