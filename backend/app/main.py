@@ -49,8 +49,43 @@ async def lifespan(app: FastAPI):
     logger.info("=== RecruitAI startup ===")
     logger.info("DATABASE_URL driver: %s", settings.DATABASE_URL.split("://")[0])
     logger.info("FRONTEND_URL: %s", settings.FRONTEND_URL)
-    logger.info("SMTP configured: %s", bool(settings.SMTP_HOST))
     logger.info("LLM_PROVIDER: %s", settings.LLM_PROVIDER)
+
+    # ── SMTP diagnostic — always visible in Render logs ──────────────────────
+    _smtp_all_set = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
+    if _smtp_all_set:
+        _pw_len = len(settings.SMTP_PASSWORD or "")
+        _user_masked = (settings.SMTP_USER or "")[:4] + "***"
+        logger.info(
+            "SMTP: host=%s port=%s user=%s from=%s password_len=%d%s",
+            settings.SMTP_HOST, settings.SMTP_PORT, _user_masked,
+            settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
+            _pw_len,
+            " ✓ looks like Gmail App Password"
+            if _pw_len == 16 else
+            f" ⚠ expected 16 chars for Gmail App Password (got {_pw_len})"
+            if settings.SMTP_HOST == "smtp.gmail.com" else "",
+        )
+        if (settings.SMTP_HOST == "smtp.gmail.com"
+                and settings.SMTP_USER and settings.EMAILS_FROM_EMAIL
+                and settings.SMTP_USER.lower() != settings.EMAILS_FROM_EMAIL.lower()):
+            logger.warning(
+                "SMTP ⚠ Gmail requires SMTP_USER (%s) == EMAILS_FROM_EMAIL (%s). "
+                "Gmail will reject the message if these differ.",
+                settings.SMTP_USER, settings.EMAILS_FROM_EMAIL,
+            )
+    elif settings.SMTP_HOST:
+        logger.warning(
+            "SMTP ⚠ SMTP_HOST is set but SMTP_USER or SMTP_PASSWORD is missing — "
+            "emails will NOT be sent. Set all 5 env vars: SMTP_HOST, SMTP_PORT, "
+            "SMTP_USER, SMTP_PASSWORD, EMAILS_FROM_EMAIL."
+        )
+    else:
+        logger.warning(
+            "SMTP: not configured — verify/reset URLs will be logged to console only. "
+            "To enable email delivery, set SMTP_HOST + SMTP_USER + SMTP_PASSWORD + "
+            "EMAILS_FROM_EMAIL in the Render dashboard."
+        )
 
     # ── CORS diagnostic — always visible in Render logs ──────────────────────
     logger.info("CORS allowed origins (%d):", len(settings.ALLOWED_ORIGINS))
@@ -209,7 +244,19 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    _smtp_configured = bool(
+        settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD
+    )
+    return {
+        "status": "healthy",
+        "smtp": {
+            "configured": _smtp_configured,
+            "host": settings.SMTP_HOST or "(not set)",
+            "port": settings.SMTP_PORT,
+            "from_address": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
+            "password_length": len(settings.SMTP_PASSWORD or ""),
+        },
+    }
 
 
 # ── Public CORS diagnostic (no auth required) ──────────────────────────────────
