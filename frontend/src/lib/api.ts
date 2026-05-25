@@ -35,7 +35,7 @@ api.interceptors.request.use((config) => {
 // index.html for every /api/v1/... call. Axios parses this as a 200 with an
 // HTML body, which then crashes deep inside the app. We catch it early here.
 function _detectHtmlResponse(response: AxiosResponse): AxiosResponse {
-  const contentType = response.headers["content-type"] ?? "";
+  const contentType = String(response.headers["content-type"] ?? "");
   if (
     typeof response.data === "string" &&
     response.data.trimStart().startsWith("<!") &&
