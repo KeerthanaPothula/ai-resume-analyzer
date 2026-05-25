@@ -235,31 +235,99 @@ def cors_check():
 @app.get("/api/v1/debug/smtp", tags=["Debug"])
 def smtp_debug():
     """
-    SMTP configuration + connection test.
-    Only available when DEBUG=True — returns 403 in production.
+    SMTP configuration + live connection test.
+    Only available when DEBUG=True — returns 403 otherwise.
+
+    To enable temporarily on Render:
+      Render dashboard → your service → Environment → add DEBUG=True → Save → redeploy.
+    Remove DEBUG=True after testing.
     """
     from fastapi import HTTPException as _HTTPException
     if not settings.DEBUG:
-        raise _HTTPException(status_code=403, detail="Debug endpoints are disabled in production")
-    from app.services.email import smtp_connection_test
-    return smtp_connection_test()
+        raise _HTTPException(
+            status_code=403,
+            detail=(
+                "Debug endpoints are disabled. "
+                "Set DEBUG=True in Render Environment Variables and redeploy to enable. "
+                "Remove it again after testing."
+            ),
+        )
+    from app.services.email import smtp_connection_test, _mask
+    result = smtp_connection_test()
+
+    # Append Gmail-specific diagnostic hints
+    is_gmail = (settings.SMTP_HOST or "").lower() == "smtp.gmail.com"
+    pw_len = len(settings.SMTP_PASSWORD or "")
+    result["gmail_mode"] = is_gmail
+    result["gmail_checklist"] = None
+    if is_gmail:
+        result["gmail_checklist"] = {
+            "host_correct": settings.SMTP_HOST == "smtp.gmail.com",
+            "port_correct": settings.SMTP_PORT == 587,
+            "password_length": pw_len,
+            "password_looks_like_app_password": pw_len == 16,
+            "from_email_matches_user": (
+                (settings.EMAILS_FROM_EMAIL or "").lower()
+                == (settings.SMTP_USER or "").lower()
+                if settings.EMAILS_FROM_EMAIL else "EMAILS_FROM_EMAIL not set (will use SMTP_USER)"
+            ),
+            "advice": (
+                "All checks passed — try send-test to verify delivery."
+                if pw_len == 16
+                else (
+                    f"SMTP_PASSWORD is {pw_len} chars. Gmail App Passwords are 16 chars. "
+                    "Generate one at https://myaccount.google.com/apppasswords "
+                    "(requires 2-Step Verification to be enabled)."
+                )
+            ),
+        }
+    return result
 
 
 @app.post("/api/v1/debug/smtp/send-test", tags=["Debug"])
 async def smtp_send_test(to: str):
     """
-    Send a real test email. Only available when DEBUG=True.
-    Usage: POST /api/v1/debug/smtp/send-test?to=you@example.com
+    Send a real test email to verify end-to-end delivery. Only available when DEBUG=True.
+
+    Usage:
+      POST /api/v1/debug/smtp/send-test?to=you@example.com
+
+    Steps:
+      1. Set DEBUG=True in Render Environment Variables → Save → wait for redeploy
+      2. Call this endpoint with your email address
+      3. Check your inbox (and spam folder)
+      4. If successful, remove DEBUG=True from Render and redeploy
     """
     from fastapi import HTTPException as _HTTPException
     if not settings.DEBUG:
-        raise _HTTPException(status_code=403, detail="Debug endpoints are disabled in production")
+        raise _HTTPException(
+            status_code=403,
+            detail=(
+                "Debug endpoints are disabled. "
+                "Set DEBUG=True in Render Environment Variables and redeploy to enable."
+            ),
+        )
     if not settings.SMTP_HOST:
-        raise _HTTPException(status_code=400, detail="SMTP not configured — set SMTP_HOST in .env")
+        raise _HTTPException(
+            status_code=400,
+            detail=(
+                "SMTP not configured. Add these to Render Environment Variables: "
+                "SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_USER=you@gmail.com, "
+                "SMTP_PASSWORD=your-16-char-app-password, EMAILS_FROM_EMAIL=you@gmail.com"
+            ),
+        )
     from app.services.email import send_reset_email
     test_url = f"{settings.FRONTEND_URL}/reset-password?token=TEST_TOKEN_DEBUG"
     try:
         await send_reset_email(to, test_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
-        return {"status": "sent", "to": to}
+        return {
+            "status": "sent",
+            "to": to,
+            "from": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER,
+            "note": "Check your inbox and spam folder. If received, SMTP is working correctly.",
+        }
     except Exception as exc:
-        raise _HTTPException(status_code=500, detail=f"Send failed: {type(exc).__name__}: {exc}")
+        raise _HTTPException(
+            status_code=500,
+            detail=f"Send failed: {type(exc).__name__}: {exc}",
+        )

@@ -1,6 +1,10 @@
+import logging
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import model_validator
 from typing import List, Optional
+
+_cfg_logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -84,6 +88,29 @@ class Settings(BaseSettings):
                 origins.append(normed)
 
         self.ALLOWED_ORIGINS = origins
+
+        # ── SMTP normalization & startup warnings ──────────────────────────────
+        # Gmail App Passwords are 16 lowercase letters; they may be pasted with
+        # spaces from the Google dashboard ("xxxx xxxx xxxx xxxx"). Strip them so
+        # the raw value that reaches smtplib is always without spaces.
+        if self.SMTP_PASSWORD:
+            self.SMTP_PASSWORD = self.SMTP_PASSWORD.replace(" ", "")
+
+        # Warn at startup if SMTP_USER and EMAILS_FROM_EMAIL differ on Gmail —
+        # Gmail rejects the MAIL FROM if it doesn't match the authenticated user.
+        if (
+            self.SMTP_HOST == "smtp.gmail.com"
+            and self.SMTP_USER
+            and self.EMAILS_FROM_EMAIL
+            and self.SMTP_USER.lower() != self.EMAILS_FROM_EMAIL.lower()
+        ):
+            _cfg_logger.warning(
+                "Gmail SMTP warning: SMTP_USER (%s) and EMAILS_FROM_EMAIL (%s) differ. "
+                "Gmail requires these to match — set EMAILS_FROM_EMAIL to the same address "
+                "as SMTP_USER or leave EMAILS_FROM_EMAIL unset.",
+                self.SMTP_USER, self.EMAILS_FROM_EMAIL,
+            )
+
         return self
 
 

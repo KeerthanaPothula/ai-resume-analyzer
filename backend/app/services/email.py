@@ -295,6 +295,25 @@ def _dispatch(msg: MIMEMultipart, to_email: str) -> None:
     logger.info("SMTP send starting — to=%s from=%s subject=%s host=%s:%s user=%s",
                 to_email, msg["From"], msg["Subject"], host, port, _mask(user))
 
+    # Gmail App Password check: App Passwords are 16 lowercase letters.
+    # Copy-pasted passwords often include spaces (e.g. "xxxx xxxx xxxx xxxx").
+    # smtplib sends the raw string — spaces cause authentication failure.
+    if host == "smtp.gmail.com" and password:
+        clean_pw = password.replace(" ", "")
+        if len(clean_pw) == 16 and password != clean_pw:
+            logger.warning(
+                "SMTP_PASSWORD looks like a Gmail App Password with spaces (length=%d with spaces, "
+                "16 without). Spaces are harmless for Gmail but if auth fails, try removing them.",
+                len(password),
+            )
+        elif len(clean_pw) != 16:
+            logger.warning(
+                "SMTP_PASSWORD length is %d chars (expected 16 for a Gmail App Password). "
+                "Make sure you are using an App Password, NOT your regular Gmail password. "
+                "Generate one at: https://myaccount.google.com/apppasswords",
+                len(clean_pw),
+            )
+
     context = ssl.create_default_context()
 
     try:

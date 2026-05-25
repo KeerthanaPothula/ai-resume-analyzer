@@ -107,6 +107,12 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
             logger.info("Verification email sent to %s", user.email)
         except Exception as exc:
             logger.error("Failed to send verification email to %s: %s", user.email, exc)
+            # Log the URL at WARNING so the account can be manually unblocked via Render logs
+            # while SMTP is being fixed. Remove once email delivery is confirmed working.
+            logger.warning(
+                "[SMTP FAILED] Manual verify URL for %s (valid %dh): %s",
+                user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+            )
     else:
         logger.info("[DEV] Verify URL for %s (valid %dh): %s", user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url)
 
@@ -252,6 +258,11 @@ async def forgot_password(
             logger.info("Password reset email sent to %s", user.email)
         except Exception as exc:
             logger.error("Failed to send reset email to %s: %s", user.email, exc)
+            # Log the URL at WARNING so it can be retrieved from Render logs while SMTP is being fixed
+            logger.warning(
+                "[SMTP FAILED] Manual reset URL for %s (valid %dmin): %s",
+                user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url,
+            )
         return generic_response
     else:
         # Dev fallback: log URL and include it in the response body
