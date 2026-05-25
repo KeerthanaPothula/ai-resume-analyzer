@@ -34,8 +34,11 @@ export default function ForgotPassword() {
       if (res.data?.dev_reset_url) {
         setDevResetUrl(res.data.dev_reset_url);
       }
-    } catch {
-      toast.error("Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Something went wrong. Please try again.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

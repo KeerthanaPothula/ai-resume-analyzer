@@ -1,7 +1,10 @@
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
+logger = logging.getLogger(__name__)
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -96,18 +99,16 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
     raw_token = _create_verification_token(user, db)
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
 
+    logger.info("New user registered: %s (role=%s)", user.email, user.role.value)
     if settings.SMTP_HOST:
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)
+            logger.info("Verification email sent to %s", user.email)
         except Exception as exc:
-            print(f"[ERROR] Failed to send verification email to {user.email}: {exc}")
+            logger.error("Failed to send verification email to %s: %s", user.email, exc)
     else:
-        print(f"\n{'='*60}")
-        print(f"[DEV] New registration: {user.email}")
-        print(f"[DEV] Verify URL (valid {settings.VERIFICATION_TOKEN_EXPIRE_HOURS}h):")
-        print(f"      {verify_url}")
-        print(f"{'='*60}\n")
+        logger.info("[DEV] Verify URL for %s (valid %dh): %s", user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url)
 
     response: dict = {
         "message": "Account created! Please check your email to verify your account before signing in.",
@@ -242,21 +243,19 @@ async def forgot_password(
 
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
 
+    logger.info("Password reset requested for: %s", user.email)
     if settings.SMTP_HOST:
         # Production: send real email, never expose the token in the response
         try:
             from app.services.email import send_reset_email
             await send_reset_email(user.email, reset_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
+            logger.info("Password reset email sent to %s", user.email)
         except Exception as exc:
-            print(f"[ERROR] Failed to send reset email to {user.email}: {exc}")
+            logger.error("Failed to send reset email to %s: %s", user.email, exc)
         return generic_response
     else:
-        # Dev fallback: print to terminal and include URL in response body
-        print(f"\n{'='*60}")
-        print(f"[DEV] Password reset requested for: {user.email}")
-        print(f"[DEV] Reset URL (valid {settings.RESET_TOKEN_EXPIRE_MINUTES} min):")
-        print(f"      {reset_url}")
-        print(f"{'='*60}\n")
+        # Dev fallback: log URL and include it in the response body
+        logger.info("[DEV] Reset URL for %s (valid %dmin): %s", user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url)
         return {**generic_response, "dev_reset_url": reset_url}
 
 
@@ -384,13 +383,10 @@ async def resend_verification(
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)
+            logger.info("Resent verification email to %s", user.email)
         except Exception as exc:
-            print(f"[ERROR] Failed to resend verification email to {user.email}: {exc}")
+            logger.error("Failed to resend verification email to %s: %s", user.email, exc)
         return generic_response
     else:
-        print(f"\n{'='*60}")
-        print(f"[DEV] Resend verification for: {user.email}")
-        print(f"[DEV] Verify URL (valid {settings.VERIFICATION_TOKEN_EXPIRE_HOURS}h):")
-        print(f"      {verify_url}")
-        print(f"{'='*60}\n")
+        logger.info("[DEV] Resend verify URL for %s (valid %dh): %s", user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url)
         return {**generic_response, "dev_verify_url": verify_url}

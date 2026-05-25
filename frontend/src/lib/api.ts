@@ -1,10 +1,21 @@
 import axios, { AxiosRequestConfig } from "axios";
 
-// Dev: requests go to localhost:5173/api/v1/... and Vite proxy forwards to localhost:8000
-// Prod: set VITE_API_URL=https://api.yoursite.com (no trailing slash)
-const API_BASE = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : "/api/v1";
+// Dev: Vite proxy forwards /api/v1/... to localhost:8000 (see vite.config.ts)
+// Prod: VITE_API_URL must be set in Vercel Environment Variables (no trailing slash)
+//       e.g. VITE_API_URL=https://recruitai-backend.onrender.com
+const _rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "");
+
+if (!_rawApiUrl && import.meta.env.PROD) {
+  // This appears in the browser console — open DevTools → Console to see it
+  console.error(
+    "[RecruitAI] VITE_API_URL is not set. " +
+      "All API calls will return the index.html page instead of JSON. " +
+      "Fix: add VITE_API_URL=https://recruitai-backend.onrender.com " +
+      "in Vercel → Project Settings → Environment Variables, then redeploy."
+  );
+}
+
+const API_BASE = _rawApiUrl ? `${_rawApiUrl}/api/v1` : "/api/v1";
 
 const api = axios.create({
   baseURL: API_BASE,

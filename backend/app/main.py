@@ -1,7 +1,14 @@
 import asyncio
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Windows: use SelectorEventLoop so httpx/google-genai async calls work correctly.
 # ProactorEventLoop (the Windows default) has known incompatibilities with httpx.
@@ -37,6 +44,20 @@ async def lifespan(app: FastAPI):
         do NOT call create_all here so Alembic stays the single source of truth.
     """
     from app.db.database import Base, engine
+
+    # Log startup config — visible in Render's deploy log immediately
+    logger.info("=== RecruitAI startup ===")
+    logger.info("DATABASE_URL driver: %s", settings.DATABASE_URL.split("://")[0])
+    logger.info("FRONTEND_URL: %s", settings.FRONTEND_URL)
+    logger.info("ALLOWED_ORIGINS: %s", settings.ALLOWED_ORIGINS)
+    logger.info("SMTP configured: %s", bool(settings.SMTP_HOST))
+    logger.info("LLM_PROVIDER: %s", settings.LLM_PROVIDER)
+    if "your-frontend" in settings.FRONTEND_URL or settings.FRONTEND_URL == "http://localhost:5173":
+        logger.warning(
+            "FRONTEND_URL looks like a placeholder or local dev value ('%s'). "
+            "Update it in the Render dashboard to your real Vercel URL so CORS and email links work.",
+            settings.FRONTEND_URL,
+        )
 
     if settings.DATABASE_URL.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
