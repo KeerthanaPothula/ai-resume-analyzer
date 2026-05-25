@@ -24,4 +24,4 @@ slowapi==0.1.9
 # LLM providers (install whichever you use; both are optional)
 openai>=1.0.0
 google-genai>=1.0.0
-truststore  # Windows: inject OS cert store into Python SSL (needed for google-genai)
+truststore>=0.9.1  # inject OS cert store into Python SSL; >=0.9.1 handles Linux correctly

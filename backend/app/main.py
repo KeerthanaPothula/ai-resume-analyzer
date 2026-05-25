@@ -9,19 +9,24 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info("app.main: module load started")
 
 # Windows: use SelectorEventLoop so httpx/google-genai async calls work correctly.
 # ProactorEventLoop (the Windows default) has known incompatibilities with httpx.
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# Inject the Windows certificate store into Python's SSL so that
-# httpx / google-genai can reach Google APIs without cert errors.
+# Inject the OS certificate store into Python's SSL so that
+# httpx / google-genai can reach external APIs without cert errors.
+# Catch ALL exceptions — on some Linux (Debian slim) configurations,
+# inject_into_ssl() raises OSError/AttributeError, not ImportError.
+# A bare ImportError catch would let those propagate and kill the process.
 try:
     import truststore
     truststore.inject_into_ssl()
-except ImportError:
-    pass  # truststore is Windows-only; harmless to skip on Linux/macOS
+    logger.info("app.main: truststore SSL injection OK")
+except Exception:
+    pass  # Non-fatal — Python's default SSL works fine without it
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -105,6 +110,8 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info("CORS: FRONTEND_URL is a real URL — Vercel domain should pass preflight.")
+
+    logger.info("app.main: lifespan running — db driver: %s", settings.DATABASE_URL.split("://")[0])
 
     if settings.DATABASE_URL.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
@@ -194,6 +201,7 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass
 
+    logger.info("app.main: startup complete — uvicorn is now serving requests")
     yield
 
 
@@ -235,6 +243,8 @@ app.include_router(rankings.router,     prefix="/api/v1/rankings",     tags=["Ra
 app.include_router(ai_feedback.router,  prefix="/api/v1/ai-feedback",  tags=["AI Feedback"])
 app.include_router(applications.router, prefix="/api/v1/applications", tags=["Applications"])
 app.include_router(notifications.router,prefix="/api/v1/notifications",tags=["Notifications"])
+
+logger.info("app.main: %d routes registered — module load complete", len(app.routes))
 
 
 @app.get("/")
@@ -299,7 +309,7 @@ def smtp_debug():
                 "Remove it again after testing."
             ),
         )
-    from app.services.email import smtp_connection_test, _mask
+    from app.services.email import smtp_connection_test
     result = smtp_connection_test()
 
     # Append Gmail-specific diagnostic hints

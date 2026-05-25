@@ -11,12 +11,13 @@ import traceback
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-# Windows: inject the OS certificate store so ssl can verify Google's cert.
-# Harmless on Linux/macOS where truststore is not installed.
+# Inject the OS certificate store so ssl can verify Google's (and Gmail SMTP's) cert.
+# Must catch ALL exceptions — on some Debian slim configurations inject_into_ssl()
+# raises OSError/AttributeError rather than ImportError.
 try:
     import truststore
     truststore.inject_into_ssl()
-except ImportError:
+except Exception:
     pass
 
 from app.core.config import settings
