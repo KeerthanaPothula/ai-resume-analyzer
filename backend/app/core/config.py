@@ -61,14 +61,28 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _add_frontend_url_to_origins(self) -> "Settings":
-        """Ensure FRONTEND_URL and EXTRA_CORS_ORIGINS are always in the CORS allow-list."""
-        origins = list(self.ALLOWED_ORIGINS)
-        if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
-            origins.append(self.FRONTEND_URL)
+        """Ensure FRONTEND_URL and EXTRA_CORS_ORIGINS are always in the CORS allow-list.
+        All URLs are normalized (trailing slash stripped) so https://app.vercel.app/
+        and https://app.vercel.app match the same browser Origin header.
+        """
+        def _norm(url: str) -> str:
+            return url.strip().rstrip("/")
+
+        # Normalize the base list
+        origins: list[str] = [_norm(o) for o in self.ALLOWED_ORIGINS if o.strip()]
+
+        # Auto-add FRONTEND_URL
+        if self.FRONTEND_URL:
+            normed = _norm(self.FRONTEND_URL)
+            if normed and normed not in origins:
+                origins.append(normed)
+
+        # Auto-add EXTRA_CORS_ORIGINS (comma-separated)
         for raw in self.EXTRA_CORS_ORIGINS.split(","):
-            o = raw.strip().rstrip("/")
-            if o and o not in origins:
-                origins.append(o)
+            normed = _norm(raw)
+            if normed and normed not in origins:
+                origins.append(normed)
+
         self.ALLOWED_ORIGINS = origins
         return self
 

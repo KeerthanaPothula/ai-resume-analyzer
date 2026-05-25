@@ -4,6 +4,7 @@ Supports Gmail (port 587 STARTTLS or 465 SSL) and any compatible SMTP provider.
 """
 
 import asyncio
+import logging
 import smtplib
 import ssl
 import traceback
@@ -19,6 +20,8 @@ except ImportError:
     pass
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # ── HTML templates ─────────────────────────────────────────────────────────────
 
@@ -289,76 +292,66 @@ def _dispatch(msg: MIMEMultipart, to_email: str) -> None:
     password = settings.SMTP_PASSWORD or ""
     from_email = settings.EMAILS_FROM_EMAIL or user
 
-    print(f"\n[SMTP] -- Starting email send ------------------------------")
-    print(f"[SMTP]  to:       {to_email}")
-    print(f"[SMTP]  from:     {msg['From']}")
-    print(f"[SMTP]  subject:  {msg['Subject']}")
-    print(f"[SMTP]  host:     {host}:{port}")
-    print(f"[SMTP]  user:     {_mask(user)}")
-    print(f"[SMTP]  password: {_mask(password)}")
+    logger.info("SMTP send starting — to=%s from=%s subject=%s host=%s:%s user=%s",
+                to_email, msg["From"], msg["Subject"], host, port, _mask(user))
 
     context = ssl.create_default_context()
 
     try:
         if port == 465:
-            print(f"[SMTP]  method: SSL (port 465)")
+            logger.info("SMTP method: SSL (port 465)")
             with smtplib.SMTP_SSL(host, port, context=context, timeout=15) as server:
-                print(f"[SMTP]  connected")
+                logger.info("SMTP connected")
                 server.login(user, password)
-                print(f"[SMTP]  authenticated")
+                logger.info("SMTP authenticated")
                 server.sendmail(from_email, [to_email], msg.as_string())
-                print(f"[SMTP]  sent OK")
+                logger.info("SMTP sent OK")
         else:
-            print(f"[SMTP]  method: STARTTLS (port {port})")
+            logger.info("SMTP method: STARTTLS (port %s)", port)
             with smtplib.SMTP(host, port, timeout=15) as server:
-                print(f"[SMTP]  connected")
                 server.ehlo()
                 server.starttls(context=context)
                 server.ehlo()
-                print(f"[SMTP]  TLS established")
+                logger.info("SMTP TLS established")
                 server.login(user, password)
-                print(f"[SMTP]  authenticated")
+                logger.info("SMTP authenticated")
                 server.sendmail(from_email, [to_email], msg.as_string())
-                print(f"[SMTP]  sent OK")
+                logger.info("SMTP sent OK")
 
-        print(f"[SMTP] -- Email delivered successfully ----------------------\n")
+        logger.info("SMTP email delivered successfully to %s", to_email)
 
     except smtplib.SMTPAuthenticationError as exc:
-        print(f"[SMTP] AUTH FAILED: {exc}")
-        print(f"[SMTP]   For Gmail: use an App Password (not your account password).")
-        print(f"[SMTP]   Enable 2-Step Verification, then visit:")
-        print(f"[SMTP]   https://myaccount.google.com/apppasswords")
+        logger.error("SMTP AUTH FAILED: %s", exc)
+        logger.error("For Gmail: use an App Password (not your account password). "
+                     "Enable 2-Step Verification then visit: "
+                     "https://myaccount.google.com/apppasswords")
         raise
 
     except smtplib.SMTPConnectError as exc:
-        print(f"[SMTP] CONNECTION FAILED: {exc}")
-        print(f"[SMTP]   Check SMTP_HOST ({host}) and SMTP_PORT ({port}).")
-        print(f"[SMTP]   Firewall / ISP may be blocking port {port}.")
+        logger.error("SMTP CONNECTION FAILED: %s — check SMTP_HOST (%s) and SMTP_PORT (%s). "
+                     "Firewall/ISP may be blocking port %s.", exc, host, port, port)
         raise
 
     except smtplib.SMTPRecipientsRefused as exc:
-        print(f"[SMTP] RECIPIENT REFUSED: {exc}")
+        logger.error("SMTP RECIPIENT REFUSED: %s", exc)
         raise
 
     except smtplib.SMTPSenderRefused as exc:
-        print(f"[SMTP] SENDER REFUSED: {exc}")
-        print(f"[SMTP]   For Gmail, EMAILS_FROM_EMAIL must match SMTP_USER.")
+        logger.error("SMTP SENDER REFUSED: %s — for Gmail, EMAILS_FROM_EMAIL must match SMTP_USER.", exc)
         raise
 
     except smtplib.SMTPException as exc:
-        print(f"[SMTP] SMTP ERROR ({type(exc).__name__}): {exc}")
-        print(traceback.format_exc())
+        logger.error("SMTP ERROR (%s): %s\n%s", type(exc).__name__, exc, traceback.format_exc())
         raise
 
     except OSError as exc:
-        print(f"[SMTP] NETWORK ERROR: {exc}")
-        print(f"[SMTP]   Cannot reach {host}:{port}. Check internet / DNS / firewall.")
-        print(traceback.format_exc())
+        logger.error("SMTP NETWORK ERROR: %s — cannot reach %s:%s. "
+                     "Check internet / DNS / firewall.\n%s", exc, host, port, traceback.format_exc())
         raise
 
     except Exception as exc:
-        print(f"[SMTP] UNEXPECTED ERROR ({type(exc).__name__}): {exc}")
-        print(traceback.format_exc())
+        logger.error("SMTP UNEXPECTED ERROR (%s): %s\n%s",
+                     type(exc).__name__, exc, traceback.format_exc())
         raise
 
 

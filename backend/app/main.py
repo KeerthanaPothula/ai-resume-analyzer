@@ -212,6 +212,26 @@ def health():
     return {"status": "healthy"}
 
 
+# ── Public CORS diagnostic (no auth required) ──────────────────────────────────
+@app.get("/api/v1/cors-check", tags=["Health"])
+def cors_check():
+    """
+    Public endpoint — returns the CORS configuration so you can verify
+    your Vercel domain is in the allow-list without needing a token.
+    Open in browser or curl:
+      curl -H "Origin: https://your-app.vercel.app" https://your-backend.onrender.com/api/v1/cors-check
+    """
+    return {
+        "allowed_origins": settings.ALLOWED_ORIGINS,
+        "frontend_url": settings.FRONTEND_URL,
+        "cors_configured": any(
+            "vercel.app" in o or "netlify.app" in o or ("localhost" not in o and "127.0.0.1" not in o)
+            for o in settings.ALLOWED_ORIGINS
+        ),
+    }
+
+
+# ── Debug endpoints (DEBUG=True only) ─────────────────────────────────────────
 @app.get("/api/v1/debug/smtp", tags=["Debug"])
 def smtp_debug():
     """

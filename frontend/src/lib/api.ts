@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig } from "axios";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 
 // Dev: Vite proxy forwards /api/v1/... to localhost:8000 (see vite.config.ts)
 // Prod: VITE_API_URL must be set in Vercel Environment Variables (no trailing slash)
@@ -30,6 +30,37 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ── HTML response detector ─────────────────────────────────────────────────
+// When VITE_API_URL is missing in production, Vercel's SPA rewrite returns
+// index.html for every /api/v1/... call. Axios parses this as a 200 with an
+// HTML body, which then crashes deep inside the app. We catch it early here.
+function _detectHtmlResponse(response: AxiosResponse): AxiosResponse {
+  const contentType = response.headers["content-type"] ?? "";
+  if (
+    typeof response.data === "string" &&
+    response.data.trimStart().startsWith("<!") &&
+    contentType.includes("text/html")
+  ) {
+    console.error(
+      "[RecruitAI] API returned HTML instead of JSON. " +
+        "This means VITE_API_URL is not set in Vercel environment variables. " +
+        "Add VITE_API_URL=https://your-backend.onrender.com and redeploy."
+    );
+    throw Object.assign(new Error("API_URL_NOT_CONFIGURED"), {
+      response: {
+        status: 503,
+        data: {
+          detail:
+            "Cannot reach the backend. If you are the site owner: add " +
+            "VITE_API_URL=https://your-backend.onrender.com to Vercel " +
+            "Environment Variables and redeploy.",
+        },
+      },
+    });
+  }
+  return response;
+}
+
 // ── Token-refresh machinery ────────────────────────────────────────────────
 let isRefreshing = false;
 let pendingQueue: Array<(token: string | null) => void> = [];
@@ -39,9 +70,9 @@ function drainQueue(token: string | null) {
   pendingQueue = [];
 }
 
-// ── Response interceptor — silent refresh on 401 ──────────────────────────
+// ── Response interceptor — HTML check + silent refresh on 401 ─────────────
 api.interceptors.response.use(
-  (res) => res,
+  (res) => _detectHtmlResponse(res),
   async (error) => {
     const original: AxiosRequestConfig & { _retry?: boolean } = error.config;
 
