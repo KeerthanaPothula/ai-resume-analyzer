@@ -10,7 +10,7 @@ if (!_rawApiUrl && import.meta.env.PROD) {
   console.error(
     "[RecruitAI] VITE_API_URL is not set. " +
       "All API calls will return the index.html page instead of JSON. " +
-      "Fix: add VITE_API_URL=https://recruitai-backend.onrender.com " +
+      "Fix: add VITE_API_URL=https://recruitai-backend-f6pi.onrender.com " +
       "in Vercel → Project Settings → Environment Variables, then redeploy."
   );
 }
@@ -44,7 +44,7 @@ function _detectHtmlResponse(response: AxiosResponse): AxiosResponse {
     console.error(
       "[RecruitAI] API returned HTML instead of JSON. " +
         "This means VITE_API_URL is not set in Vercel environment variables. " +
-        "Add VITE_API_URL=https://your-backend.onrender.com and redeploy."
+        "Add VITE_API_URL=https://recruitai-backend-f6pi.onrender.com and redeploy."
     );
     throw Object.assign(new Error("API_URL_NOT_CONFIGURED"), {
       response: {
@@ -52,7 +52,7 @@ function _detectHtmlResponse(response: AxiosResponse): AxiosResponse {
         data: {
           detail:
             "Cannot reach the backend. If you are the site owner: add " +
-            "VITE_API_URL=https://your-backend.onrender.com to Vercel " +
+            "VITE_API_URL=https://recruitai-backend-f6pi.onrender.com to Vercel " +
             "Environment Variables and redeploy.",
         },
       },

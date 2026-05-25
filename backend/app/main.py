@@ -103,13 +103,14 @@ async def lifespan(app: FastAPI):
     )
     if _frontend_placeholder:
         logger.warning(
-            "⚠ CORS WARNING: FRONTEND_URL is '%s' — looks like a placeholder or local dev value. "
-            "Set FRONTEND_URL=https://your-app.vercel.app in the Render dashboard, then redeploy. "
-            "Until then, your real Vercel domain is NOT in the CORS allow-list and preflight requests will fail.",
+            "⚠ CORS WARNING: FRONTEND_URL is '%s' — this is a placeholder or local dev value. "
+            "Set FRONTEND_URL=https://ai-resume-analyzer-keerthanapothulas-projects.vercel.app "
+            "in the Render dashboard, then redeploy. "
+            "Until then, the Vercel domain is NOT in the CORS allow-list and preflight requests will fail.",
             settings.FRONTEND_URL,
         )
     else:
-        logger.info("CORS: FRONTEND_URL is a real URL — Vercel domain should pass preflight.")
+        logger.info("CORS: FRONTEND_URL '%s' — Vercel domain should pass preflight.", settings.FRONTEND_URL)
 
     logger.info("app.main: lifespan running — db driver: %s", settings.DATABASE_URL.split("://")[0])
 
