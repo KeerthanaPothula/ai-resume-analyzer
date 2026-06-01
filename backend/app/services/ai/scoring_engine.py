@@ -1,37 +1,47 @@
+import logging
 import re
 import threading
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Lazy-load heavy models
+logger = logging.getLogger(__name__)
+
 _embedding_model = None
-_model_load_attempted = False
+_model_loading = False
+_model_load_done = False
+
+
+def preload_embedding_model() -> None:
+    """Start loading the SentenceTransformer model in a background thread.
+    Call once at startup so the model is ready before the first upload request.
+    """
+    global _model_loading
+    if _model_loading:
+        return
+    _model_loading = True
+    t = threading.Thread(target=_load_model_sync, daemon=True)
+    t.start()
+    logger.info("SentenceTransformer: background load started")
+
+
+def _load_model_sync() -> None:
+    global _embedding_model, _model_load_done
+    try:
+        import os
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+        logger.info("SentenceTransformer: loading all-MiniLM-L6-v2 ...")
+        from sentence_transformers import SentenceTransformer
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        logger.info("SentenceTransformer: ready")
+    except Exception as exc:
+        logger.warning("SentenceTransformer: failed to load — %s", exc)
+    finally:
+        _model_load_done = True
 
 
 def get_embedding_model():
-    global _embedding_model, _model_load_attempted
-    if _model_load_attempted:
-        return _embedding_model
-    _model_load_attempted = True
-
-    result = [None]
-
-    def _load():
-        try:
-            import os
-            os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
-            from sentence_transformers import SentenceTransformer
-            result[0] = SentenceTransformer("all-MiniLM-L6-v2")
-        except Exception:
-            result[0] = None
-
-    t = threading.Thread(target=_load, daemon=True)
-    t.start()
-    # Allow up to 60 s for first-time download; subsequent calls return immediately
-    t.join(timeout=60)
-
-    _embedding_model = result[0]
+    """Return the loaded model, or None if not yet ready. Never blocks."""
     return _embedding_model
 
 

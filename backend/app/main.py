@@ -56,6 +56,12 @@ async def lifespan(app: FastAPI):
     logger.info("FRONTEND_URL: %s", settings.FRONTEND_URL)
     logger.info("LLM_PROVIDER: %s", settings.LLM_PROVIDER)
 
+    # ── Preload embedding model in background ─────────────────────────────────
+    # Starts a daemon thread immediately so the model is ready before the first
+    # upload request. The thread never blocks the event loop.
+    from app.services.ai.scoring_engine import preload_embedding_model
+    preload_embedding_model()
+
     # ── Email transport diagnostic — always visible in Render logs ───────────
     if settings.RESEND_API_KEY:
         _key_masked = settings.RESEND_API_KEY[:8] + "***"

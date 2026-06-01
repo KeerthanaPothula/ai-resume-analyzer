@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -21,6 +23,54 @@ from app.services.ai.scoring_engine import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _analyse_resume(file_path: str, file_ext: str, user_full_name: str) -> dict:
+    """CPU-bound resume pipeline — runs in a thread pool via asyncio.to_thread."""
+    logger.info("upload: parsing %s (%s)", file_path, file_ext)
+    parsed = parse_resume_file(file_path, file_ext)
+    raw_text: str = parsed.get("raw_text", "")
+    logger.info("upload: text extracted (%d chars)", len(raw_text))
+
+    skills = extract_skills_from_text(raw_text)
+    logger.info("upload: %d skills extracted", len(skills))
+
+    embedding = generate_embedding(raw_text)
+    logger.info("upload: embedding %s", "generated" if embedding else "skipped (model loading)")
+
+    general = calculate_general_ats_score(
+        skills=skills,
+        experience_years=parsed.get("experience_years", 0.0),
+        education_level=parsed.get("education_level", "Not Specified"),
+        candidate_name=parsed.get("candidate_name"),
+        candidate_email=parsed.get("candidate_email"),
+        candidate_phone=parsed.get("candidate_phone"),
+        candidate_location=parsed.get("candidate_location"),
+        raw_text=raw_text,
+    )
+    logger.info("upload: ATS score %.1f", general["overall"])
+
+    summary = extract_resume_summary(raw_text)
+
+    feedback = generate_ai_feedback(
+        candidate_name=parsed.get("candidate_name") or user_full_name,
+        overall_score=general["overall"],
+        matched_skills=skills[:10],
+        missing_skills=[w for w in general["weaknesses"] if len(w) < 60][:3],
+        experience_years=parsed.get("experience_years", 0.0),
+        education=parsed.get("education_level", "Not Specified"),
+    )
+
+    return {
+        **parsed,
+        "skills": skills,
+        "embedding": embedding,
+        "general": general,
+        "summary": summary,
+        "feedback": feedback,
+    }
+
 
 ALLOWED_TYPES = {
     "application/pdf": "pdf",
@@ -62,69 +112,44 @@ async def upload_resume(
         f.write(contents)
 
     try:
-        # ── Parse ─────────────────────────────────────────────────────────────
-        parsed = parse_resume_file(file_path, file_ext)
-        raw_text: str = parsed.get("raw_text", "")
-
-        # ── Extract skills ────────────────────────────────────────────────────
-        skills = extract_skills_from_text(raw_text)
-
-        # ── Embedding for semantic job matching ───────────────────────────────
-        embedding = generate_embedding(raw_text)
-
-        # ── General ATS score (no job required) ───────────────────────────────
-        general = calculate_general_ats_score(
-            skills=skills,
-            experience_years=parsed.get("experience_years", 0.0),
-            education_level=parsed.get("education_level", "Not Specified"),
-            candidate_name=parsed.get("candidate_name"),
-            candidate_email=parsed.get("candidate_email"),
-            candidate_phone=parsed.get("candidate_phone"),
-            candidate_location=parsed.get("candidate_location"),
-            raw_text=raw_text,
+        logger.info(
+            "upload: starting analysis for user_id=%d file=%s",
+            current_user.id, unique_filename,
         )
-
-        # ── Summary ───────────────────────────────────────────────────────────
-        summary = extract_resume_summary(raw_text)
-
-        # ── AI feedback ───────────────────────────────────────────────────────
-        feedback = generate_ai_feedback(
-            candidate_name=parsed.get("candidate_name") or current_user.full_name,
-            overall_score=general["overall"],
-            matched_skills=skills[:10],
-            missing_skills=[w for w in general["weaknesses"] if len(w) < 60][:3],
-            experience_years=parsed.get("experience_years", 0.0),
-            education=parsed.get("education_level", "Not Specified"),
+        result = await asyncio.to_thread(
+            _analyse_resume, file_path, file_ext, current_user.full_name
         )
+        logger.info("upload: analysis complete, persisting to DB")
 
-        # ── Persist ───────────────────────────────────────────────────────────
         resume = Resume(
             user_id=current_user.id,
             filename=unique_filename,
             file_path=file_path,
             file_type=file_ext,
             original_name=file.filename or safe_name,
-            raw_text=raw_text,
-            candidate_name=parsed.get("candidate_name"),
-            candidate_email=parsed.get("candidate_email"),
-            candidate_phone=parsed.get("candidate_phone"),
-            candidate_location=parsed.get("candidate_location"),
-            extracted_skills=skills,
-            experience_years=parsed.get("experience_years", 0.0),
-            education_level=parsed.get("education_level"),
-            ats_score=general["overall"],
-            embedding=embedding,
-            summary=summary,
-            ai_feedback=feedback,
-            strengths=general["strengths"],
-            weaknesses=general["weaknesses"],
+            raw_text=result["raw_text"],
+            candidate_name=result.get("candidate_name"),
+            candidate_email=result.get("candidate_email"),
+            candidate_phone=result.get("candidate_phone"),
+            candidate_location=result.get("candidate_location"),
+            extracted_skills=result["skills"],
+            experience_years=result.get("experience_years", 0.0),
+            education_level=result.get("education_level"),
+            ats_score=result["general"]["overall"],
+            embedding=result["embedding"],
+            summary=result["summary"],
+            ai_feedback=result["feedback"],
+            strengths=result["general"]["strengths"],
+            weaknesses=result["general"]["weaknesses"],
         )
         db.add(resume)
         db.commit()
         db.refresh(resume)
+        logger.info("upload: resume id=%d saved OK", resume.id)
         return resume
 
     except Exception as e:
+        logger.error("upload: failed — %s: %s", type(e).__name__, e)
         if os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"Failed to process resume: {str(e)}")
