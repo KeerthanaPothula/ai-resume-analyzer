@@ -80,7 +80,7 @@ def update_job(
     job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.recruiter_id != current_user.id and current_user.role != "admin":
+    if job.recruiter_id != current_user.id and current_user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
     description_changed = job_data.description != job.description
@@ -114,7 +114,7 @@ def delete_job(
     job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.recruiter_id != current_user.id and current_user.role != "admin":
+    if job.recruiter_id != current_user.id and current_user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     # Cascade: remove ATS scores and rankings that reference this job
     db.query(ATSScore).filter(ATSScore.job_id == job_id).delete()

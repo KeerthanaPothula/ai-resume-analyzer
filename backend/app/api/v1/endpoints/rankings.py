@@ -71,6 +71,9 @@ def rank_candidates_for_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    if job.recruiter_id != current_user.id and current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="You can only rank candidates for your own jobs")
+
     # Only re-rank resumes that have actually applied to this job.
     # Reject any IDs that don't have an is_applied=True record — this prevents
     # the old "rank all resumes in the system" behaviour.
@@ -194,6 +197,15 @@ def get_rankings_for_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    if current_user.role.value not in ("recruiter", "admin"):
+        raise HTTPException(status_code=403, detail="Only recruiters can view candidate rankings")
+
+    job = db.query(JobDescription).filter(JobDescription.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.recruiter_id != current_user.id and current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="You can only view rankings for your own jobs")
+
     rankings = (
         db.query(CandidateRanking)
         .filter(
@@ -279,6 +291,11 @@ def update_ranking_entry(
     ranking = db.query(CandidateRanking).filter(CandidateRanking.id == ranking_id).first()
     if not ranking:
         raise HTTPException(status_code=404, detail="Ranking not found")
+
+    # Ensure the ranking belongs to a job owned by this recruiter
+    job = db.query(JobDescription).filter(JobDescription.id == ranking.job_id).first()
+    if not job or (job.recruiter_id != current_user.id and current_user.role.value != "admin"):
+        raise HTTPException(status_code=403, detail="Not authorized to update this ranking")
 
     if data.shortlisted is not None:
         ranking.shortlisted = data.shortlisted
