@@ -1,19 +1,23 @@
 import hashlib
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.database import get_db
 
+logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+# auto_error=False — we raise 401 ourselves inside get_current_user after logging why it failed
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 # ── Passwords ──────────────────────────────────────────────────────────────────
@@ -62,7 +66,10 @@ def hash_token(raw_token: str) -> str:
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except JWTError:
+    except JWTError as exc:
+        exc_name = type(exc).__name__
+        token_preview = (token or "")[:12] + "..." if token else "(empty)"
+        logger.warning("decode_token: %s — token_prefix=%s", exc_name, token_preview)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -73,24 +80,45 @@ def decode_token(token: str) -> dict:
 # ── FastAPI dependency helpers ─────────────────────────────────────────────────
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
     from app.models.user import User
 
+    path = request.url.path
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    logger.info(
+        "auth: path=%s auth_header_present=%s token_present=%s",
+        path, bool(auth_header), bool(token),
+    )
+
+    if token is None:
+        logger.warning("auth: no Bearer token — path=%s", path)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # decode_token logs the specific JWTError type on failure
     payload = decode_token(token)
 
     if payload.get("type") != "access":
+        logger.warning("auth: wrong token type '%s' — path=%s", payload.get("type"), path)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
 
     sub = payload.get("sub")
     if sub is None:
+        logger.warning("auth: missing 'sub' claim — path=%s", path)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
     user = db.query(User).filter(User.id == int(sub)).first()
     if user is None:
+        logger.warning("auth: user id=%s not found — path=%s", sub, path)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
+    logger.info("auth: OK — user_id=%d path=%s", user.id, path)
     return user
 
 

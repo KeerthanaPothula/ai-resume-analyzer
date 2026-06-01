@@ -20,7 +20,7 @@ services:
       - key: ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "15"
+        value: "60"
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: "7"
 

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -80,10 +80,15 @@ ALLOWED_TYPES = {
 
 @router.post("/upload", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resume(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    # These lines only run when auth already succeeded — token was valid
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    logger.info("upload: Authorization header present: %s", auth_header is not None)
+    logger.info("upload: current_user=%s", current_user.id)
     # ── Validate file type ────────────────────────────────────────────────────
     file_ext = ALLOWED_TYPES.get(file.content_type or "")
     if not file_ext:
