@@ -28,10 +28,10 @@ try:
 except Exception:
     pass  # Non-fatal — Python's default SSL works fine without it
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.endpoints import ai_feedback, analysis, applications, auth, candidates, dashboard, jobs, notifications, rankings, resumes, users
@@ -217,7 +217,14 @@ app = FastAPI(
 
 # ── Rate limiting ──────────────────────────────────────────────────────────────
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many requests. Please wait a moment and try again."},
+    )
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
 app.add_middleware(

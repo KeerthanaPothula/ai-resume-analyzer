@@ -35,9 +35,31 @@ export default function ForgotPassword() {
         setDevResetUrl(res.data.dev_reset_url);
       }
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Something went wrong. Please try again.";
+      type AxiosLike = {
+        code?: string;
+        message?: string;
+        response?: { status?: number; data?: { detail?: string; error?: string } };
+      };
+      const e = err as AxiosLike;
+
+      let msg: string;
+      if (!e.response) {
+        // No response — network error, CORS block, or server unreachable
+        if (e.code === "ECONNABORTED" || e.message?.toLowerCase().includes("timeout")) {
+          msg =
+            "The server took too long to respond. It may be starting up — please try again in 30 seconds.";
+        } else {
+          msg =
+            "Cannot reach the server. Check that VITE_API_URL is set in Vercel and the backend allows this domain (CORS).";
+        }
+      } else if (e.response.status === 429) {
+        msg = e.response.data?.detail ?? "Too many requests. Please wait a minute and try again.";
+      } else {
+        msg =
+          e.response.data?.detail ??
+          e.response.data?.error ??
+          `Unexpected error (HTTP ${e.response.status ?? "unknown"}). Please try again.`;
+      }
       toast.error(msg);
     } finally {
       setLoading(false);

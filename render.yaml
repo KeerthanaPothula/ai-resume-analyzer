@@ -29,13 +29,12 @@ services:
       # Set this to the stable Vercel production URL (no trailing slash).
       # After changing this value you MUST redeploy on Render for it to take effect.
       - key: FRONTEND_URL
-        value: https://ai-resume-analyzer-keerthanapothulas-projects.vercel.app
+        value: https://ai-resume-analyzer-nine-peach.vercel.app
 
       # Add extra Vercel preview/deployment URLs here (comma-separated, no JSON).
       # Each new Vercel deploy creates a unique URL — add it here so it passes CORS.
-      # Example: https://ai-resume-analyzer-abc123-keerthanapothulas-projects.vercel.app
       - key: EXTRA_CORS_ORIGINS
-        value: https://ai-resume-analyzer-mj4fwaqc4-keerthanapothulas-projects.vercel.app
+        value: https://ai-resume-analyzer-keerthanapothulas-projects.vercel.app,https://ai-resume-analyzer-mj4fwaqc4-keerthanapothulas-projects.vercel.app
 
       # ── App ───────────────────────────────────────────────────────────────────
       - key: DEBUG
