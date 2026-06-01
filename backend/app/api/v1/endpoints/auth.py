@@ -100,17 +100,15 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
 
     logger.info("New user registered: %s (role=%s)", user.email, user.role.value)
-    if settings.SMTP_HOST:
+    if settings.email_enabled:
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)
             logger.info("Verification email sent to %s", user.email)
         except Exception as exc:
             logger.error("Failed to send verification email to %s: %s", user.email, exc)
-            # Log the URL at WARNING so the account can be manually unblocked via Render logs
-            # while SMTP is being fixed. Remove once email delivery is confirmed working.
             logger.warning(
-                "[SMTP FAILED] Manual verify URL for %s (valid %dh): %s",
+                "[EMAIL FAILED] Manual verify URL for %s (valid %dh): %s",
                 user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
             )
     else:
@@ -120,7 +118,7 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
         "message": "Account created! Please check your email to verify your account before signing in.",
         "email": user.email,
     }
-    if not settings.SMTP_HOST:
+    if not settings.email_enabled:
         response["dev_verify_url"] = verify_url
     return response
 
@@ -250,22 +248,19 @@ async def forgot_password(
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
 
     logger.info("Password reset requested for: %s", user.email)
-    if settings.SMTP_HOST:
-        # Production: send real email, never expose the token in the response
+    if settings.email_enabled:
         try:
             from app.services.email import send_reset_email
             await send_reset_email(user.email, reset_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
             logger.info("Password reset email sent to %s", user.email)
         except Exception as exc:
             logger.error("Failed to send reset email to %s: %s", user.email, exc)
-            # Log the URL at WARNING so it can be retrieved from Render logs while SMTP is being fixed
             logger.warning(
-                "[SMTP FAILED] Manual reset URL for %s (valid %dmin): %s",
+                "[EMAIL FAILED] Manual reset URL for %s (valid %dmin): %s",
                 user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url,
             )
         return generic_response
     else:
-        # Dev fallback: log URL and include it in the response body
         logger.info("[DEV] Reset URL for %s (valid %dmin): %s", user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url)
         return {**generic_response, "dev_reset_url": reset_url}
 
@@ -390,7 +385,7 @@ async def resend_verification(
     raw_token = _create_verification_token(user, db)
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
 
-    if settings.SMTP_HOST:
+    if settings.email_enabled:
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)

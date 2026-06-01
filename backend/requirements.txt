@@ -20,6 +20,7 @@ httpx==0.26.0
 aiofiles==23.2.1
 Pillow==10.2.0
 slowapi==0.1.9
+resend>=2.0.0
 
 # LLM providers (install whichever you use; both are optional)
 openai>=1.0.0

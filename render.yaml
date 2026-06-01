@@ -50,15 +50,23 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
-      # ── SMTP Email ────────────────────────────────────────────────────────────
-      # Optional. When not set, password-reset and verification URLs are printed
-      # to the Render log instead of being emailed.
+      # ── Resend Email (recommended — works on Render free tier) ───────────────
+      # Sign up at https://resend.com (free tier: 3 000 emails/month, 100/day).
+      # Steps:
+      #   1. Create a Resend account and get an API key from the dashboard.
+      #   2. Add and verify your sending domain (DNS TXT/MX records).
+      #   3. Set RESEND_API_KEY and RESEND_FROM_EMAIL here, then redeploy.
       #
-      # Gmail setup:
-      #   1. Enable 2-Step Verification on your Google account
-      #   2. Go to: https://myaccount.google.com/apppasswords
-      #   3. Generate a 16-char App Password and use it as SMTP_PASSWORD
-      #
+      - key: RESEND_API_KEY
+        sync: false
+      # Must be an address on your verified Resend domain, e.g. noreply@yourdomain.com
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: EMAILS_FROM_NAME
+        value: RecruitAI
+
+      # ── SMTP Email (legacy fallback — not recommended on Render free tier) ───
+      # Render free tier blocks outbound port 587/465; use Resend above instead.
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -69,8 +77,6 @@ services:
         sync: false
       - key: EMAILS_FROM_EMAIL
         sync: false
-      - key: EMAILS_FROM_NAME
-        value: RecruitAI
 
       # ── HuggingFace model cache ───────────────────────────────────────────────
       # Keeps the sentence-transformers model in the path baked into the Docker image.

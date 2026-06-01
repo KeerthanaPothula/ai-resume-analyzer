@@ -56,41 +56,37 @@ async def lifespan(app: FastAPI):
     logger.info("FRONTEND_URL: %s", settings.FRONTEND_URL)
     logger.info("LLM_PROVIDER: %s", settings.LLM_PROVIDER)
 
-    # ── SMTP diagnostic — always visible in Render logs ──────────────────────
-    _smtp_all_set = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
-    if _smtp_all_set:
-        _pw_len = len(settings.SMTP_PASSWORD or "")
-        _user_masked = (settings.SMTP_USER or "")[:4] + "***"
-        logger.info(
-            "SMTP: host=%s port=%s user=%s from=%s password_len=%d%s",
-            settings.SMTP_HOST, settings.SMTP_PORT, _user_masked,
-            settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
-            _pw_len,
-            " ✓ looks like Gmail App Password"
-            if _pw_len == 16 else
-            f" ⚠ expected 16 chars for Gmail App Password (got {_pw_len})"
-            if settings.SMTP_HOST == "smtp.gmail.com" else "",
-        )
-        if (settings.SMTP_HOST == "smtp.gmail.com"
-                and settings.SMTP_USER and settings.EMAILS_FROM_EMAIL
-                and settings.SMTP_USER.lower() != settings.EMAILS_FROM_EMAIL.lower()):
+    # ── Email transport diagnostic — always visible in Render logs ───────────
+    if settings.RESEND_API_KEY:
+        _key_masked = settings.RESEND_API_KEY[:8] + "***"
+        _from = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set — will use onboarding@resend.dev)"
+        logger.info("Email: Resend ✓ — api_key=%s from=%s", _key_masked, _from)
+        if not (settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL):
             logger.warning(
-                "SMTP ⚠ Gmail requires SMTP_USER (%s) == EMAILS_FROM_EMAIL (%s). "
-                "Gmail will reject the message if these differ.",
-                settings.SMTP_USER, settings.EMAILS_FROM_EMAIL,
+                "Email ⚠ RESEND_FROM_EMAIL not set — using onboarding@resend.dev which only "
+                "works in Resend sandbox mode. Set RESEND_FROM_EMAIL to your verified domain address."
             )
-    elif settings.SMTP_HOST:
-        logger.warning(
-            "SMTP ⚠ SMTP_HOST is set but SMTP_USER or SMTP_PASSWORD is missing — "
-            "emails will NOT be sent. Set all 5 env vars: SMTP_HOST, SMTP_PORT, "
-            "SMTP_USER, SMTP_PASSWORD, EMAILS_FROM_EMAIL."
-        )
     else:
-        logger.warning(
-            "SMTP: not configured — verify/reset URLs will be logged to console only. "
-            "To enable email delivery, set SMTP_HOST + SMTP_USER + SMTP_PASSWORD + "
-            "EMAILS_FROM_EMAIL in the Render dashboard."
-        )
+        _smtp_all_set = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
+        if _smtp_all_set:
+            _pw_len = len(settings.SMTP_PASSWORD or "")
+            _user_masked = (settings.SMTP_USER or "")[:4] + "***"
+            logger.info(
+                "Email: SMTP (fallback) — host=%s port=%s user=%s from=%s password_len=%d",
+                settings.SMTP_HOST, settings.SMTP_PORT, _user_masked,
+                settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
+                _pw_len,
+            )
+        elif settings.SMTP_HOST:
+            logger.warning(
+                "Email ⚠ SMTP_HOST is set but SMTP_USER or SMTP_PASSWORD is missing — "
+                "emails will NOT be sent."
+            )
+        else:
+            logger.warning(
+                "Email: no transport configured — verify/reset URLs will be logged to console only. "
+                "Set RESEND_API_KEY in the Render dashboard to enable email delivery."
+            )
 
     # ── CORS diagnostic — always visible in Render logs ──────────────────────
     logger.info("CORS allowed origins (%d):", len(settings.ALLOWED_ORIGINS))
@@ -262,17 +258,23 @@ def root():
 
 @app.get("/health")
 def health():
-    _smtp_configured = bool(
-        settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD
-    )
+    _resend_configured = bool(settings.RESEND_API_KEY)
+    _smtp_configured = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
     return {
         "status": "healthy",
-        "smtp": {
-            "configured": _smtp_configured,
-            "host": settings.SMTP_HOST or "(not set)",
-            "port": settings.SMTP_PORT,
-            "from_address": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
-            "password_length": len(settings.SMTP_PASSWORD or ""),
+        "email": {
+            "transport": "resend" if _resend_configured else ("smtp" if _smtp_configured else "none"),
+            "configured": _resend_configured or _smtp_configured,
+            "resend": {
+                "configured": _resend_configured,
+                "from_address": settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set)",
+            },
+            "smtp": {
+                "configured": _smtp_configured,
+                "host": settings.SMTP_HOST or "(not set)",
+                "port": settings.SMTP_PORT,
+                "from_address": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
+            },
         },
     }
 

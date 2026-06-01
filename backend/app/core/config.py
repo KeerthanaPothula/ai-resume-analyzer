@@ -54,7 +54,14 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
 
-    # SMTP (optional — if unset, reset URL is printed to console for dev)
+    # Resend (preferred email transport — uses HTTPS, works on Render free tier)
+    # Sign up at https://resend.com, get an API key, verify a sending domain.
+    RESEND_API_KEY: Optional[str] = None
+    # From address for Resend — must match a verified domain in your Resend account.
+    # Example: "noreply@yourdomain.com". Leave unset to use "onboarding@resend.dev" (test only).
+    RESEND_FROM_EMAIL: Optional[str] = None
+
+    # SMTP (legacy fallback — keep for local dev; Resend takes priority when both are set)
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = None
@@ -62,6 +69,11 @@ class Settings(BaseSettings):
     # Sender address — defaults to SMTP_USER when not set (required for Gmail)
     EMAILS_FROM_EMAIL: Optional[str] = None
     EMAILS_FROM_NAME: str = "RecruitAI"
+
+    @property
+    def email_enabled(self) -> bool:
+        """True when at least one email transport (Resend or SMTP) is configured."""
+        return bool(self.RESEND_API_KEY or self.SMTP_HOST)
 
     @model_validator(mode="after")
     def _add_frontend_url_to_origins(self) -> "Settings":
