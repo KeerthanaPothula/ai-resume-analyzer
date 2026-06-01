@@ -67,26 +67,10 @@ async def lifespan(app: FastAPI):
                 "works in Resend sandbox mode. Set RESEND_FROM_EMAIL to your verified domain address."
             )
     else:
-        _smtp_all_set = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
-        if _smtp_all_set:
-            _pw_len = len(settings.SMTP_PASSWORD or "")
-            _user_masked = (settings.SMTP_USER or "")[:4] + "***"
-            logger.info(
-                "Email: SMTP (fallback) — host=%s port=%s user=%s from=%s password_len=%d",
-                settings.SMTP_HOST, settings.SMTP_PORT, _user_masked,
-                settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
-                _pw_len,
-            )
-        elif settings.SMTP_HOST:
-            logger.warning(
-                "Email ⚠ SMTP_HOST is set but SMTP_USER or SMTP_PASSWORD is missing — "
-                "emails will NOT be sent."
-            )
-        else:
-            logger.warning(
-                "Email: no transport configured — verify/reset URLs will be logged to console only. "
-                "Set RESEND_API_KEY in the Render dashboard to enable email delivery."
-            )
+        logger.warning(
+            "Email: RESEND_API_KEY not set — verify/reset URLs will be logged to console only. "
+            "Set RESEND_API_KEY in the Render dashboard to enable email delivery."
+        )
 
     # ── CORS diagnostic — always visible in Render logs ──────────────────────
     logger.info("CORS allowed origins (%d):", len(settings.ALLOWED_ORIGINS))
@@ -259,22 +243,12 @@ def root():
 @app.get("/health")
 def health():
     _resend_configured = bool(settings.RESEND_API_KEY)
-    _smtp_configured = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
     return {
         "status": "healthy",
         "email": {
-            "transport": "resend" if _resend_configured else ("smtp" if _smtp_configured else "none"),
-            "configured": _resend_configured or _smtp_configured,
-            "resend": {
-                "configured": _resend_configured,
-                "from_address": settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set)",
-            },
-            "smtp": {
-                "configured": _smtp_configured,
-                "host": settings.SMTP_HOST or "(not set)",
-                "port": settings.SMTP_PORT,
-                "from_address": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)",
-            },
+            "transport": "resend" if _resend_configured else "none",
+            "configured": _resend_configured,
+            "from_address": settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "onboarding@resend.dev",
         },
     }
 
@@ -299,11 +273,10 @@ def cors_check():
 
 
 # ── Debug endpoints (DEBUG=True only) ─────────────────────────────────────────
-@app.get("/api/v1/debug/smtp", tags=["Debug"])
-def smtp_debug():
+@app.get("/api/v1/debug/resend", tags=["Debug"])
+def resend_debug():
     """
-    SMTP configuration + live connection test.
-    Only available when DEBUG=True — returns 403 otherwise.
+    Resend configuration check. Only available when DEBUG=True.
 
     To enable temporarily on Render:
       Render dashboard → your service → Environment → add DEBUG=True → Save → redeploy.
@@ -319,69 +292,41 @@ def smtp_debug():
                 "Remove it again after testing."
             ),
         )
-    from app.services.email import smtp_connection_test
-    result = smtp_connection_test()
-
-    # Append Gmail-specific diagnostic hints
-    is_gmail = (settings.SMTP_HOST or "").lower() == "smtp.gmail.com"
-    pw_len = len(settings.SMTP_PASSWORD or "")
-    result["gmail_mode"] = is_gmail
-    result["gmail_checklist"] = None
-    if is_gmail:
-        result["gmail_checklist"] = {
-            "host_correct": settings.SMTP_HOST == "smtp.gmail.com",
-            "port_correct": settings.SMTP_PORT == 587,
-            "password_length": pw_len,
-            "password_looks_like_app_password": pw_len == 16,
-            "from_email_matches_user": (
-                (settings.EMAILS_FROM_EMAIL or "").lower()
-                == (settings.SMTP_USER or "").lower()
-                if settings.EMAILS_FROM_EMAIL else "EMAILS_FROM_EMAIL not set (will use SMTP_USER)"
-            ),
-            "advice": (
-                "All checks passed — try send-test to verify delivery."
-                if pw_len == 16
-                else (
-                    f"SMTP_PASSWORD is {pw_len} chars. Gmail App Passwords are 16 chars. "
-                    "Generate one at https://myaccount.google.com/apppasswords "
-                    "(requires 2-Step Verification to be enabled)."
-                )
-            ),
-        }
-    return result
+    _configured = bool(settings.RESEND_API_KEY)
+    from_addr = (
+        f"{settings.EMAILS_FROM_NAME} "
+        f"<{settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or 'onboarding@resend.dev'}>"
+    )
+    return {
+        "resend_configured": _configured,
+        "api_key_prefix": (settings.RESEND_API_KEY[:8] + "***") if settings.RESEND_API_KEY else "(not set)",
+        "from_address": from_addr,
+        "advice": (
+            "Resend is configured. Use /debug/resend/send-test to verify delivery."
+            if _configured
+            else "Set RESEND_API_KEY in Render Environment Variables, then redeploy."
+        ),
+    }
 
 
-@app.post("/api/v1/debug/smtp/send-test", tags=["Debug"])
-async def smtp_send_test(to: str):
+@app.post("/api/v1/debug/resend/send-test", tags=["Debug"])
+async def resend_send_test(to: str):
     """
-    Send a real test email to verify end-to-end delivery. Only available when DEBUG=True.
+    Send a real test email via Resend to verify end-to-end delivery. Only available when DEBUG=True.
 
     Usage:
-      POST /api/v1/debug/smtp/send-test?to=you@example.com
-
-    Steps:
-      1. Set DEBUG=True in Render Environment Variables → Save → wait for redeploy
-      2. Call this endpoint with your email address
-      3. Check your inbox (and spam folder)
-      4. If successful, remove DEBUG=True from Render and redeploy
+      POST /api/v1/debug/resend/send-test?to=you@example.com
     """
     from fastapi import HTTPException as _HTTPException
     if not settings.DEBUG:
         raise _HTTPException(
             status_code=403,
-            detail=(
-                "Debug endpoints are disabled. "
-                "Set DEBUG=True in Render Environment Variables and redeploy to enable."
-            ),
+            detail="Debug endpoints are disabled. Set DEBUG=True in Render Environment Variables and redeploy.",
         )
-    if not settings.SMTP_HOST:
+    if not settings.RESEND_API_KEY:
         raise _HTTPException(
             status_code=400,
-            detail=(
-                "SMTP not configured. Add these to Render Environment Variables: "
-                "SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_USER=you@gmail.com, "
-                "SMTP_PASSWORD=your-16-char-app-password, EMAILS_FROM_EMAIL=you@gmail.com"
-            ),
+            detail="RESEND_API_KEY not set. Add it in Render Environment Variables, then redeploy.",
         )
     from app.services.email import send_reset_email
     test_url = f"{settings.FRONTEND_URL}/reset-password?token=TEST_TOKEN_DEBUG"
@@ -390,8 +335,7 @@ async def smtp_send_test(to: str):
         return {
             "status": "sent",
             "to": to,
-            "from": settings.EMAILS_FROM_EMAIL or settings.SMTP_USER,
-            "note": "Check your inbox and spam folder. If received, SMTP is working correctly.",
+            "note": "Check your inbox and spam folder. If received, Resend is working correctly.",
         }
     except Exception as exc:
         raise _HTTPException(

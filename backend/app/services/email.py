@@ -1,19 +1,12 @@
 """
-Email service — uses the Resend HTTP API (https://resend.com) when RESEND_API_KEY is set.
-Falls back to SMTP (smtplib) when only SMTP_HOST/SMTP_USER/SMTP_PASSWORD are configured.
-When neither is set, URLs are printed to the console (dev mode).
-
-Resend is the recommended transport for Render free tier because it uses HTTPS
-outbound (port 443) rather than raw SMTP (port 587), which Render blocks.
+Email service — Resend HTTP API transport (https://resend.com).
+Set RESEND_API_KEY in the Render dashboard to enable delivery.
+When not set, verify/reset URLs are printed to the console only (dev mode).
 """
 
 import asyncio
 import logging
-import smtplib
-import ssl
 import traceback
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 try:
     import truststore
@@ -274,14 +267,7 @@ _VERIFY_EMAIL_HTML = """\
 """
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _mask(value: str | None, show: int = 3) -> str:
-    """Return first `show` chars + asterisks — safe for logging."""
-    if not value:
-        return "(not set)"
-    return value[:show] + "*" * max(0, len(value) - show)
-
+# ── Resend transport ──────────────────────────────────────────────────────────
 
 def _resend_from() -> str:
     """Return the From address for Resend ('Name <email>')."""
@@ -291,11 +277,8 @@ def _resend_from() -> str:
 
 
 def _dispatch_resend(to_email: str, subject: str, html: str, text: str) -> None:
-    """
-    Send email via the Resend HTTP API.
-    Run in a thread via asyncio.to_thread — the resend SDK is synchronous.
-    """
-    import resend as _resend  # lazy import — not needed when using SMTP fallback
+    """Send email via the Resend HTTP API. Run in a thread via asyncio.to_thread."""
+    import resend as _resend
 
     _resend.api_key = settings.RESEND_API_KEY
     from_addr = _resend_from()
@@ -315,249 +298,37 @@ def _dispatch_resend(to_email: str, subject: str, html: str, text: str) -> None:
         raise
 
 
-def _dispatch(msg: MIMEMultipart, to_email: str) -> None:
-    """
-    Send a pre-built MIME message via the configured SMTP server.
-    Shared by all outgoing email functions.
-    """
-    host = settings.SMTP_HOST or ""
-    port = settings.SMTP_PORT
-    user = settings.SMTP_USER or ""
-    password = settings.SMTP_PASSWORD or ""
-    from_email = settings.EMAILS_FROM_EMAIL or user
+# ── Public API ────────────────────────────────────────────────────────────────
 
-    logger.info("SMTP send starting — to=%s from=%s subject=%s host=%s:%s user=%s",
-                to_email, msg["From"], msg["Subject"], host, port, _mask(user))
-
-    # Gmail App Password check: App Passwords are 16 lowercase letters.
-    # Copy-pasted passwords often include spaces (e.g. "xxxx xxxx xxxx xxxx").
-    # smtplib sends the raw string — spaces cause authentication failure.
-    if host == "smtp.gmail.com" and password:
-        clean_pw = password.replace(" ", "")
-        if len(clean_pw) == 16 and password != clean_pw:
-            logger.warning(
-                "SMTP_PASSWORD looks like a Gmail App Password with spaces (length=%d with spaces, "
-                "16 without). Spaces are harmless for Gmail but if auth fails, try removing them.",
-                len(password),
-            )
-        elif len(clean_pw) != 16:
-            logger.warning(
-                "SMTP_PASSWORD length is %d chars (expected 16 for a Gmail App Password). "
-                "Make sure you are using an App Password, NOT your regular Gmail password. "
-                "Generate one at: https://myaccount.google.com/apppasswords",
-                len(clean_pw),
-            )
-
-    context = ssl.create_default_context()
-
-    try:
-        if port == 465:
-            logger.info("SMTP method: SSL (port 465)")
-            with smtplib.SMTP_SSL(host, port, context=context, timeout=15) as server:
-                logger.info("SMTP connected")
-                server.login(user, password)
-                logger.info("SMTP authenticated")
-                server.sendmail(from_email, [to_email], msg.as_string())
-                logger.info("SMTP sent OK")
-        else:
-            logger.info("SMTP method: STARTTLS (port %s)", port)
-            with smtplib.SMTP(host, port, timeout=15) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                server.ehlo()
-                logger.info("SMTP TLS established")
-                server.login(user, password)
-                logger.info("SMTP authenticated")
-                server.sendmail(from_email, [to_email], msg.as_string())
-                logger.info("SMTP sent OK")
-
-        logger.info("SMTP email delivered successfully to %s", to_email)
-
-    except smtplib.SMTPAuthenticationError as exc:
-        logger.error("SMTP AUTH FAILED: %s", exc)
-        logger.error("For Gmail: use an App Password (not your account password). "
-                     "Enable 2-Step Verification then visit: "
-                     "https://myaccount.google.com/apppasswords")
-        raise
-
-    except smtplib.SMTPConnectError as exc:
-        logger.error("SMTP CONNECTION FAILED: %s — check SMTP_HOST (%s) and SMTP_PORT (%s). "
-                     "Firewall/ISP may be blocking port %s.", exc, host, port, port)
-        raise
-
-    except smtplib.SMTPRecipientsRefused as exc:
-        logger.error("SMTP RECIPIENT REFUSED: %s", exc)
-        raise
-
-    except smtplib.SMTPSenderRefused as exc:
-        logger.error("SMTP SENDER REFUSED: %s — for Gmail, EMAILS_FROM_EMAIL must match SMTP_USER.", exc)
-        raise
-
-    except smtplib.SMTPException as exc:
-        logger.error("SMTP ERROR (%s): %s\n%s", type(exc).__name__, exc, traceback.format_exc())
-        raise
-
-    except OSError as exc:
-        logger.error("SMTP NETWORK ERROR: %s — cannot reach %s:%s. "
-                     "Check internet / DNS / firewall.\n%s", exc, host, port, traceback.format_exc())
-        raise
-
-    except Exception as exc:
-        logger.error("SMTP UNEXPECTED ERROR (%s): %s\n%s",
-                     type(exc).__name__, exc, traceback.format_exc())
-        raise
-
-
-def _build_reset_msg(to_email: str, reset_url: str, expire_minutes: int) -> MIMEMultipart:
-    from_email = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or ""
-    from_display = f"{settings.EMAILS_FROM_NAME} <{from_email}>"
-
-    html_body = (
+async def send_reset_email(to_email: str, reset_url: str, expire_minutes: int) -> None:
+    """Send a password-reset email via Resend."""
+    html = (
         _RESET_EMAIL_HTML
         .replace("{{to_email}}", to_email)
         .replace("{{reset_url}}", reset_url)
         .replace("{{expire_minutes}}", str(expire_minutes))
         .replace("{{frontend_url}}", settings.FRONTEND_URL)
     )
-    text_body = (
+    text = (
         f"Reset your RecruitAI password\n\n"
         f"Open this link to choose a new password (expires in {expire_minutes} minutes):\n"
-        f"{reset_url}\n\n"
-        f"If you didn't request this, ignore this email.\n"
+        f"{reset_url}\n\nIf you didn't request this, ignore this email.\n"
     )
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Reset your RecruitAI password"
-    msg["From"] = from_display
-    msg["To"] = to_email
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
-    return msg
+    await asyncio.to_thread(_dispatch_resend, to_email, "Reset your RecruitAI password", html, text)
 
 
-def _build_verify_msg(to_email: str, full_name: str, verify_url: str) -> MIMEMultipart:
-    from_email = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or ""
-    from_display = f"{settings.EMAILS_FROM_NAME} <{from_email}>"
-
-    html_body = (
+async def send_verification_email(to_email: str, full_name: str, verify_url: str) -> None:
+    """Send an email verification link via Resend."""
+    html = (
         _VERIFY_EMAIL_HTML
         .replace("{{to_email}}", to_email)
         .replace("{{full_name}}", full_name)
         .replace("{{verify_url}}", verify_url)
         .replace("{{frontend_url}}", settings.FRONTEND_URL)
     )
-    text_body = (
+    text = (
         f"Welcome to RecruitAI, {full_name}!\n\n"
         f"Click the link below to verify your email address (expires in 24 hours):\n"
-        f"{verify_url}\n\n"
-        f"If you didn't create a RecruitAI account, you can safely ignore this email.\n"
+        f"{verify_url}\n\nIf you didn't create a RecruitAI account, you can safely ignore this email.\n"
     )
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Verify your RecruitAI email address"
-    msg["From"] = from_display
-    msg["To"] = to_email
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
-    return msg
-
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-async def send_reset_email(to_email: str, reset_url: str, expire_minutes: int) -> None:
-    """Send a password-reset email via Resend (preferred) or SMTP (fallback)."""
-    if settings.RESEND_API_KEY:
-        html = (
-            _RESET_EMAIL_HTML
-            .replace("{{to_email}}", to_email)
-            .replace("{{reset_url}}", reset_url)
-            .replace("{{expire_minutes}}", str(expire_minutes))
-            .replace("{{frontend_url}}", settings.FRONTEND_URL)
-        )
-        text = (
-            f"Reset your RecruitAI password\n\n"
-            f"Open this link to choose a new password (expires in {expire_minutes} minutes):\n"
-            f"{reset_url}\n\nIf you didn't request this, ignore this email.\n"
-        )
-        await asyncio.to_thread(_dispatch_resend, to_email, "Reset your RecruitAI password", html, text)
-    else:
-        msg = _build_reset_msg(to_email, reset_url, expire_minutes)
-        await asyncio.to_thread(_dispatch, msg, to_email)
-
-
-async def send_verification_email(to_email: str, full_name: str, verify_url: str) -> None:
-    """Send an email verification link via Resend (preferred) or SMTP (fallback)."""
-    if settings.RESEND_API_KEY:
-        html = (
-            _VERIFY_EMAIL_HTML
-            .replace("{{to_email}}", to_email)
-            .replace("{{full_name}}", full_name)
-            .replace("{{verify_url}}", verify_url)
-            .replace("{{frontend_url}}", settings.FRONTEND_URL)
-        )
-        text = (
-            f"Welcome to RecruitAI, {full_name}!\n\n"
-            f"Click the link below to verify your email address (expires in 24 hours):\n"
-            f"{verify_url}\n\nIf you didn't create a RecruitAI account, you can safely ignore this email.\n"
-        )
-        await asyncio.to_thread(_dispatch_resend, to_email, "Verify your RecruitAI email address", html, text)
-    else:
-        msg = _build_verify_msg(to_email, full_name, verify_url)
-        await asyncio.to_thread(_dispatch, msg, to_email)
-
-
-def smtp_connection_test() -> dict:
-    """
-    Synchronous SMTP connection test — returns a status dict.
-    Used by the /debug/smtp endpoint.
-    """
-    host = settings.SMTP_HOST or ""
-    port = settings.SMTP_PORT
-    user = settings.SMTP_USER or ""
-    password = settings.SMTP_PASSWORD or ""
-
-    result: dict = {
-        "smtp_host": host or "(not configured)",
-        "smtp_port": port,
-        "smtp_user": _mask(user) if user else "(not configured)",
-        "emails_from": settings.EMAILS_FROM_EMAIL or user or "(not configured)",
-        "emails_from_name": settings.EMAILS_FROM_NAME,
-        "configured": bool(host and user and password),
-        "connection": None,
-        "auth": None,
-        "error": None,
-    }
-
-    if not result["configured"]:
-        result["error"] = "SMTP_HOST / SMTP_USER / SMTP_PASSWORD not all set in .env"
-        return result
-
-    context = ssl.create_default_context()
-    try:
-        if port == 465:
-            with smtplib.SMTP_SSL(host, port, context=context, timeout=10) as server:
-                result["connection"] = "ok"
-                server.login(user, password)
-                result["auth"] = "ok"
-        else:
-            with smtplib.SMTP(host, port, timeout=10) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                server.ehlo()
-                result["connection"] = "ok"
-                server.login(user, password)
-                result["auth"] = "ok"
-    except smtplib.SMTPAuthenticationError as exc:
-        result["connection"] = "ok"
-        result["auth"] = f"FAILED: {exc}"
-        result["error"] = "Authentication failed — for Gmail use an App Password, not your account password"
-    except smtplib.SMTPConnectError as exc:
-        result["connection"] = f"FAILED: {exc}"
-        result["error"] = f"Cannot connect to {host}:{port}"
-    except OSError as exc:
-        result["connection"] = f"FAILED: {exc}"
-        result["error"] = f"Network error reaching {host}:{port}"
-    except Exception as exc:
-        result["error"] = f"{type(exc).__name__}: {exc}"
-
-    return result
+    await asyncio.to_thread(_dispatch_resend, to_email, "Verify your RecruitAI email address", html, text)

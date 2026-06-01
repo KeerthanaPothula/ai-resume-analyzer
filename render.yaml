@@ -50,7 +50,7 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
-      # ── Resend Email (recommended — works on Render free tier) ───────────────
+      # ── Resend Email ──────────────────────────────────────────────────────────
       # Sign up at https://resend.com (free tier: 3 000 emails/month, 100/day).
       # Steps:
       #   1. Create a Resend account and get an API key from the dashboard.
@@ -60,23 +60,11 @@ services:
       - key: RESEND_API_KEY
         sync: false
       # Must be an address on your verified Resend domain, e.g. noreply@yourdomain.com
+      # Leave unset to use onboarding@resend.dev (Resend sandbox — test only).
       - key: RESEND_FROM_EMAIL
         sync: false
       - key: EMAILS_FROM_NAME
         value: RecruitAI
-
-      # ── SMTP Email (legacy fallback — not recommended on Render free tier) ───
-      # Render free tier blocks outbound port 587/465; use Resend above instead.
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: EMAILS_FROM_EMAIL
-        sync: false
 
       # ── HuggingFace model cache ───────────────────────────────────────────────
       # Keeps the sentence-transformers model in the path baked into the Docker image.

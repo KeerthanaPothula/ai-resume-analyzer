@@ -54,26 +54,20 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
 
-    # Resend (preferred email transport — uses HTTPS, works on Render free tier)
+    # Resend email transport (https://resend.com — HTTPS, works on Render free tier)
     # Sign up at https://resend.com, get an API key, verify a sending domain.
     RESEND_API_KEY: Optional[str] = None
-    # From address for Resend — must match a verified domain in your Resend account.
-    # Example: "noreply@yourdomain.com". Leave unset to use "onboarding@resend.dev" (test only).
+    # From address — must match a verified domain in your Resend account.
+    # Example: "noreply@yourdomain.com". Leave unset to use "onboarding@resend.dev" (sandbox only).
     RESEND_FROM_EMAIL: Optional[str] = None
-
-    # SMTP (legacy fallback — keep for local dev; Resend takes priority when both are set)
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    # Sender address — defaults to SMTP_USER when not set (required for Gmail)
+    # Fallback From address when RESEND_FROM_EMAIL is not set
     EMAILS_FROM_EMAIL: Optional[str] = None
     EMAILS_FROM_NAME: str = "RecruitAI"
 
     @property
     def email_enabled(self) -> bool:
-        """True when at least one email transport (Resend or SMTP) is configured."""
-        return bool(self.RESEND_API_KEY or self.SMTP_HOST)
+        """True when Resend is configured."""
+        return bool(self.RESEND_API_KEY)
 
     @model_validator(mode="after")
     def _add_frontend_url_to_origins(self) -> "Settings":
@@ -100,28 +94,6 @@ class Settings(BaseSettings):
                 origins.append(normed)
 
         self.ALLOWED_ORIGINS = origins
-
-        # ── SMTP normalization & startup warnings ──────────────────────────────
-        # Gmail App Passwords are 16 lowercase letters; they may be pasted with
-        # spaces from the Google dashboard ("xxxx xxxx xxxx xxxx"). Strip them so
-        # the raw value that reaches smtplib is always without spaces.
-        if self.SMTP_PASSWORD:
-            self.SMTP_PASSWORD = self.SMTP_PASSWORD.replace(" ", "")
-
-        # Warn at startup if SMTP_USER and EMAILS_FROM_EMAIL differ on Gmail —
-        # Gmail rejects the MAIL FROM if it doesn't match the authenticated user.
-        if (
-            self.SMTP_HOST == "smtp.gmail.com"
-            and self.SMTP_USER
-            and self.EMAILS_FROM_EMAIL
-            and self.SMTP_USER.lower() != self.EMAILS_FROM_EMAIL.lower()
-        ):
-            _cfg_logger.warning(
-                "Gmail SMTP warning: SMTP_USER (%s) and EMAILS_FROM_EMAIL (%s) differ. "
-                "Gmail requires these to match — set EMAILS_FROM_EMAIL to the same address "
-                "as SMTP_USER or leave EMAILS_FROM_EMAIL unset.",
-                self.SMTP_USER, self.EMAILS_FROM_EMAIL,
-            )
 
         return self
 
