@@ -16,12 +16,22 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('email_verification_token_hash', sa.String(), nullable=True))
-        batch_op.add_column(sa.Column('email_verification_token_expires', sa.DateTime(timezone=True), nullable=True))
+    bind = op.get_bind()
+    existing = {c['name'] for c in sa.inspect(bind).get_columns('users')}
+
+    cols_to_add = []
+    if 'email_verification_token_hash' not in existing:
+        cols_to_add.append(sa.Column('email_verification_token_hash', sa.String(), nullable=True))
+    if 'email_verification_token_expires' not in existing:
+        cols_to_add.append(sa.Column('email_verification_token_expires', sa.DateTime(timezone=True), nullable=True))
+
+    if cols_to_add:
+        with op.batch_alter_table('users', schema=None) as batch_op:
+            for col in cols_to_add:
+                batch_op.add_column(col)
 
     # Grandfather accounts created before verification was introduced
-    op.execute("UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE")
+    op.execute(sa.text("UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE"))
 
 
 def downgrade():
