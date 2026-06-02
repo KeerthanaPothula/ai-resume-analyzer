@@ -14,8 +14,8 @@ else:
     engine = create_engine(
         settings.DATABASE_URL,
         pool_pre_ping=True,
-        pool_size=3,       # free tier: keep resident connections low
-        max_overflow=7,    # burst headroom
+        pool_size=1,       # single worker needs at most 1 resident connection
+        max_overflow=2,    # allow brief burst headroom
         pool_timeout=30,   # raise instead of hang if all connections busy
     )
 

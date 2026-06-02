@@ -40,6 +40,13 @@ services:
       - key: DEBUG
         value: "False"
 
+      # ── Embedding model (SentenceTransformer / PyTorch) ───────────────────────
+      # PyTorch consumes ~300 MB at import time, which exceeds Render free tier
+      # (512 MB). Keep this "false" unless you upgrade to a paid Render plan.
+      # Set to "true" to enable full semantic-similarity ATS scoring.
+      - key: ENABLE_EMBEDDINGS
+        value: "false"
+
       # ── AI / LLM Feedback ─────────────────────────────────────────────────────
       # Set LLM_PROVIDER to "gemini" or "openai" and supply the matching key below.
       # Leave as "none" to use template-based feedback (free, no external calls).

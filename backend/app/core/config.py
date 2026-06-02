@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "RecruitAI"
     DEBUG: bool = False
+    ENABLE_EMBEDDINGS: bool = False
     UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 10
 

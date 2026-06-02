@@ -55,12 +55,19 @@ async def lifespan(app: FastAPI):
     logger.info("DATABASE_URL driver: %s", settings.DATABASE_URL.split("://")[0])
     logger.info("FRONTEND_URL: %s", settings.FRONTEND_URL)
     logger.info("LLM_PROVIDER: %s", settings.LLM_PROVIDER)
+    logger.info("ENABLE_EMBEDDINGS: %s", settings.ENABLE_EMBEDDINGS)
 
     # ── Preload embedding model in background ─────────────────────────────────
-    # Starts a daemon thread immediately so the model is ready before the first
-    # upload request. The thread never blocks the event loop.
-    from app.services.ai.scoring_engine import preload_embedding_model
-    preload_embedding_model()
+    # Disabled by default: PyTorch alone consumes ~300 MB, which causes OOM on
+    # Render free tier (512 MB cap) before the first request is served.
+    # Set ENABLE_EMBEDDINGS=true to restore full semantic-similarity scoring.
+    # When disabled, generate_embedding() returns None and calculate_ats_score()
+    # automatically falls back to keyword-overlap for the semantic component.
+    if settings.ENABLE_EMBEDDINGS:
+        from app.services.ai.scoring_engine import preload_embedding_model
+        preload_embedding_model()
+    else:
+        logger.info("Embeddings disabled (ENABLE_EMBEDDINGS=false) — ATS scoring uses keyword-overlap fallback")
 
     # ── Email transport diagnostic — always visible in Render logs ───────────
     if settings.RESEND_API_KEY:
