@@ -177,7 +177,7 @@ _BEHAVIORAL_POOL: List[str] = [
     "Describe how you have handled a high-severity production incident from detection to resolution.",
     "Tell me about a time you had to balance being thorough with being fast in a high-stakes situation.",
     "Describe a time when documentation or lack thereof caused a serious problem. What did you do about it?",
-    "Tell me about a project where success depended on a partner team delivering on time. How did you manage that dependency?",
+    "Tell me about a project where success depended on a partner team delivering on time. How did you manage that dependency?",  # noqa: E501
     "Describe a time when you had to re-prioritize work in the middle of a sprint or project cycle.",
     "Tell me about a time you received conflicting direction from two different leaders. How did you handle it?",
     "Describe a situation where you identified technical toil on your team and drove its elimination.",
@@ -189,31 +189,31 @@ _BEHAVIORAL_POOL: List[str] = [
 ]
 
 _SITUATIONAL_POOL: List[str] = [
-    "Imagine you inherit a legacy codebase with no documentation and a critical bug in production. Walk me through your first 48 hours.",
-    "You've just joined a team and notice the deploy pipeline breaks several times a week. What is your approach to fixing it?",
+    "Imagine you inherit a legacy codebase with no documentation and a critical bug in production. Walk me through your first 48 hours.",  # noqa: E501
+    "You've just joined a team and notice the deploy pipeline breaks several times a week. What is your approach to fixing it?",  # noqa: E501
     "Your service's p99 latency tripled overnight and on-call just paged you. Walk me through your incident response.",
-    "Imagine the database underlying a key feature is approaching capacity and queries are slowing down. What do you do?",
+    "Imagine the database underlying a key feature is approaching capacity and queries are slowing down. What do you do?",  # noqa: E501
     "A stakeholder requests a feature that you believe will introduce significant technical debt. How do you respond?",
-    "Your team is asked to deliver a large feature in half the estimated time. How do you approach the conversation and the work?",
-    "Imagine you discover a serious security vulnerability in production that was introduced six months ago. What are your next steps?",
-    "You are asked to migrate a high-traffic service to a new technology with no downtime window. How do you plan this?",
-    "A junior engineer on your team is consistently delivering low-quality code under deadline pressure. How do you address this?",
-    "Your team's code review process is creating a bottleneck where PRs wait three to five days. How do you solve this?",
+    "Your team is asked to deliver a large feature in half the estimated time. How do you approach the conversation and the work?",  # noqa: E501
+    "Imagine you discover a serious security vulnerability in production that was introduced six months ago. What are your next steps?",  # noqa: E501
+    "You are asked to migrate a high-traffic service to a new technology with no downtime window. How do you plan this?",  # noqa: E501
+    "A junior engineer on your team is consistently delivering low-quality code under deadline pressure. How do you address this?",  # noqa: E501
+    "Your team's code review process is creating a bottleneck where PRs wait three to five days. How do you solve this?",  # noqa: E501
     "Imagine you need to roll back a major deploy but the rollback procedure has never been tested. What do you do?",
     "You are tasked with making an architectural decision that will affect five teams. How do you approach alignment?",
     "A critical third-party API your service depends on has just announced end-of-life in 90 days. What is your plan?",
-    "Your team is asked to build a feature with very unclear requirements from a non-technical product owner. How do you proceed?",
-    "Imagine you have to onboard a new team member who will take over a system you built alone. How do you approach this?",
-    "You receive a bug report but cannot reproduce it locally or in staging — only in production. What is your debugging strategy?",
-    "Your service is hitting rate limits on an external API at peak load. What are your short-term and long-term solutions?",
+    "Your team is asked to build a feature with very unclear requirements from a non-technical product owner. How do you proceed?",  # noqa: E501
+    "Imagine you have to onboard a new team member who will take over a system you built alone. How do you approach this?",  # noqa: E501
+    "You receive a bug report but cannot reproduce it locally or in staging — only in production. What is your debugging strategy?",  # noqa: E501
+    "Your service is hitting rate limits on an external API at peak load. What are your short-term and long-term solutions?",  # noqa: E501
     "Imagine you are the on-call engineer and two P1 incidents occur simultaneously. How do you triage and respond?",
     "You are asked to estimate a project but the requirements are still changing. How do you handle the estimation?",
-    "Your CI/CD pipeline takes 45 minutes and developers are complaining it slows them down. How do you approach optimization?",
+    "Your CI/CD pipeline takes 45 minutes and developers are complaining it slows them down. How do you approach optimization?",  # noqa: E501
     "Imagine a data breach is suspected. What are your immediate steps before the full scope is known?",
     "Your team has accumulated significant technical debt in a core service. How do you make the case to address it?",
-    "You are building a new feature and realize it conflicts with a decision another team already shipped. What do you do?",
-    "Imagine you are asked to choose between a faster-to-build but hard-to-scale approach and a slower but architecturally sound one. How do you decide?",
-    "Your team needs to hire a new engineer and you are designing the technical interview. How do you ensure it is fair and effective?",
+    "You are building a new feature and realize it conflicts with a decision another team already shipped. What do you do?",  # noqa: E501
+    "Imagine you are asked to choose between a faster-to-build but hard-to-scale approach and a slower but architecturally sound one. How do you decide?",  # noqa: E501
+    "Your team needs to hire a new engineer and you are designing the technical interview. How do you ensure it is fair and effective?",  # noqa: E501
 ]
 
 _GENERAL_TECHNICAL_POOL: List[str] = [
@@ -623,7 +623,7 @@ Return ONLY a JSON object with exactly these keys:
   "missing_skills": ["skill1", "skill2", "skill3"],
   "ats_optimization_tips": ["tip 1", "tip 2", "tip 3", "tip 4"],
   "overall_assessment": "1-2 sentence assessment explaining the ATS score",
-  "interview_questions": ["Behavioral or technical question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
+  "interview_questions": ["Behavioral or technical question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]  # noqa: E501
 }}
 
 For interview_questions: generate 5 VARIED and SPECIFIC questions this hiring manager would ask.
@@ -662,7 +662,7 @@ Mix technical, behavioral, and situational questions. Do NOT repeat the same que
 
 _PING_PROMPT = '{"test": true}'
 
-_QUICK_MATCH_PROMPT = """You are an expert ATS system and career coach. Analyze how well this resume matches the job description.
+_QUICK_MATCH_PROMPT = """You are an expert ATS system and career coach. Analyze how well this resume matches the job description.  # noqa: E501
 
 Resume (truncated to 2500 chars):
 {resume_text}
@@ -689,17 +689,20 @@ For recommendation pick exactly one of:
   "Moderate match - upskill first" | "Weak match - significant preparation needed"
 
 For interview_questions: generate 5 UNIQUE and VARIED questions tailored specifically to THIS {job_title} role.
-Mix: 2 technical questions about the role's specific stack, 2 behavioral questions, 1 role-specific situational question.
+Mix: 2 technical questions about the role's specific stack, 2 behavioral questions, 1 role-specific situational question.  # noqa: E501
 Do NOT use generic filler questions. Questions must differ meaningfully across repeated calls for the same role.
 """
 
-_CHAT_PROMPT = """You are an expert AI career coach specializing in resume optimization, ATS systems, job searching, and interview preparation. You give concise, actionable, and encouraging advice.
-
-{context}
-
-User: {message}
-
-Respond in 2-4 paragraphs. Be specific and actionable. Use a warm, professional tone. Do NOT use excessive bullet points — prefer flowing, readable prose."""
+_CHAT_PROMPT = (
+    "You are an expert AI career coach specializing in resume optimization, "
+    "ATS systems, job searching, and interview preparation. "
+    "You give concise, actionable, and encouraging advice.\n\n"
+    "{context}\n\n"
+    "User: {message}\n\n"
+    "Respond in 2-4 paragraphs. Be specific and actionable. "
+    "Use a warm, professional tone. "
+    "Do NOT use excessive bullet points — prefer flowing, readable prose."
+)
 
 
 # ── LLM Service ───────────────────────────────────────────────────────────────
@@ -961,7 +964,10 @@ class LLMService:
     ) -> Dict[str, Any]:
         return {
             "match_score": 55.0,
-            "match_analysis": f"Your resume shows relevant experience for a {job_title} role. Upload a more detailed resume and use the AI provider for a precise match score.",
+            "match_analysis": (
+                f"Your resume shows relevant experience for a {job_title} role. "
+                "Upload a more detailed resume and use the AI provider for a precise match score."
+            ),
             "matched_skills": ["communication", "problem-solving", "teamwork"],
             "missing_skills": ["domain-specific certifications", "portfolio projects"],
             "strengths": ["Demonstrated experience", "Technical background", "Educational credentials"],
@@ -1003,12 +1009,14 @@ class LLMService:
                 "Tailor your skills section to each application — this alone can dramatically improve your match score."
             )
         return (
-            "That's a great career question! Here's my guidance: focus on building concrete evidence of your "
+            "That's a great career question! Here's my guidance: "
+            "focus on building concrete evidence of your "
             "skills through real projects, open-source contributions, or measurable work achievements.\n\n"
             "Your resume should tell a compelling story — not just what you did, but the impact you made. "
             "Use strong action verbs (architected, led, optimized, delivered) and quantify wherever possible.\n\n"
             "Networking is also underrated: 70-80% of jobs are filled through referrals. "
-            "Connect with professionals in your target role on LinkedIn, attend meetups, and contribute to communities. "
+            "Connect with professionals in your target role on LinkedIn, "
+            "attend meetups, and contribute to communities. "
             "Let me know if you have a more specific question!"
         )
 
@@ -1061,7 +1069,7 @@ class LLMService:
         try:
             from google import genai
             from google.genai import types as genai_types
-            from google.genai import errors as genai_errors
+            from google.genai import errors as genai_errors  # noqa: F401
 
             if self._gemini_client is None:
                 self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
@@ -1144,7 +1152,7 @@ class LLMService:
         """Log a Gemini error with a human-readable hint."""
         msg = str(exc)
         try:
-            from google.genai import errors as genai_errors
+            from google.genai import errors as genai_errors  # noqa: F401
 
             if isinstance(exc, genai_errors.ClientError):
                 code = getattr(exc, "status_code", 0) or 0
@@ -1225,9 +1233,13 @@ class LLMService:
             else f"A professional with {experience_years:.0f} year{'s' if experience_years != 1 else ''} of experience"
         )
         exp_assessment = (
-            f"This resume has {len(skills)} detected skill(s) with academic and project-based experience. "
+            f"This resume has {len(skills)} detected skill(s) "
+            "with academic and project-based experience. "
             if experience_years == 0
-            else f"This resume has {len(skills)} detected skill(s) and {experience_years:.0f} year(s) of professional experience. "
+            else (
+                f"This resume has {len(skills)} detected skill(s) "
+                f"and {experience_years:.0f} year(s) of professional experience. "
+            )
         )
         return ResumeFeedback(
             summary=(
@@ -1269,12 +1281,16 @@ class LLMService:
         total = len(matched_skills) + len(missing_skills)
         pct = round(len(matched_skills) / max(total, 1) * 100)
         matched_preview = ", ".join(matched_skills[:3]) or "your existing skills"
+        closing = (
+            "Addressing the skill gaps below will significantly strengthen your candidacy."
+            if missing_skills
+            else "This is an excellent match — apply with confidence."
+        )
 
         return JobMatchFeedback(
             match_analysis=(
                 f"Your resume matches approximately {pct}% of the required skills for this {job_title} role. "
-                f"You demonstrate proficiency in {matched_preview}. "
-                f"{'Addressing the skill gaps below will significantly strengthen your candidacy.' if missing_skills else 'This is an excellent match — apply with confidence.'}"
+                f"You demonstrate proficiency in {matched_preview}. {closing}"
             ),
             missing_skills=missing_skills[:5],
             interview_questions=_pick_job_match_questions(

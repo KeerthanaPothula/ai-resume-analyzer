@@ -1,8 +1,8 @@
 import logging
-import re
 import threading
+from typing import Dict, List, Optional
+
 import numpy as np
-from typing import List, Dict, Optional, Tuple
 from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger(__name__)
@@ -153,11 +153,12 @@ def generate_interview_questions(
 ) -> List[str]:
     """Generate role-relevant interview questions."""
     questions = [
-        f"Tell me about your experience with {required_skills[0] if required_skills else 'your primary technology stack'}.",
-        f"What is your approach to debugging complex issues in a production environment?",
+        f"Tell me about your experience with "
+        f"{required_skills[0] if required_skills else 'your primary technology stack'}.",
+        "What is your approach to debugging complex issues in a production environment?",
         f"Describe a challenging project you worked on as a {job_title} and how you overcame obstacles.",
         f"How do you stay current with the latest trends and best practices in {job_title} role?",
-        f"Explain your experience with version control and collaborative development workflows.",
+        "Explain your experience with version control and collaborative development workflows.",
     ]
 
     # Add skill-specific questions
@@ -166,14 +167,17 @@ def generate_interview_questions(
 
     # Add gap-related questions
     for skill in (missing_skills[:2] if missing_skills else []):
-        questions.append(f"We use {skill} extensively. What's your familiarity with it, and how quickly could you get up to speed?")
+        questions.append(
+            f"We use {skill} extensively. What's your familiarity with it, "
+            "and how quickly could you get up to speed?"
+        )
 
     return questions[:10]
 
 
 def extract_resume_summary(text: str) -> str:
     """Pull a professional summary from resume text."""
-    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
 
     # Look for an explicit summary/profile/objective section
     section_kws = {"summary", "profile", "objective", "about", "overview", "introduction"}
@@ -341,7 +345,10 @@ def generate_ai_feedback(
 Your resume demonstrates proficiency in {', '.join(matched_skills[:5]) if matched_skills else 'general skills'}. """
 
     if experience_years > 0:
-        feedback += f"With {experience_years:.0f} years of experience, you bring substantial practical knowledge to the table. "
+        feedback += (
+            f"With {experience_years:.0f} years of experience, "
+            "you bring substantial practical knowledge to the table. "
+        )
 
     if education != "Not Specified":
         feedback += f"Your {education} degree provides a solid academic foundation. "
@@ -349,10 +356,16 @@ Your resume demonstrates proficiency in {', '.join(matched_skills[:5]) if matche
     feedback += "\n\n### Areas for Improvement\n"
 
     if missing_skills:
-        feedback += f"To strengthen your profile for this role, consider developing expertise in: {', '.join(missing_skills[:5])}. "
+        feedback += (
+            "To strengthen your profile for this role, consider developing expertise in: "
+            f"{', '.join(missing_skills[:5])}. "
+        )
 
     if overall_score < 60:
-        feedback += "\nFocus on tailoring your resume more specifically to the job description keywords and requirements. "
+        feedback += (
+            "\nFocus on tailoring your resume more specifically "
+            "to the job description keywords and requirements. "
+        )
 
     feedback += "\n\n### Recommendations\n"
     feedback += "1. Quantify your achievements with specific metrics and outcomes.\n"

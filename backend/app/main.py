@@ -28,15 +28,18 @@ try:
 except Exception:
     pass  # Non-fatal — Python's default SSL works fine without it
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi.errors import RateLimitExceeded
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
 
-from app.api.v1.endpoints import ai_feedback, analysis, applications, auth, candidates, dashboard, jobs, notifications, rankings, resumes, users
-import app.models.notification  # noqa: F401 — ensures Notification table is created by create_all
-from app.core.config import settings
-from app.core.limiter import limiter
+from app.api.v1.endpoints import (  # noqa: E402
+    ai_feedback, analysis, applications, auth, candidates,
+    dashboard, jobs, notifications, rankings, resumes, users,
+)
+from app.models import notification as _notification  # noqa: E402, F401
+from app.core.config import settings  # noqa: E402
+from app.core.limiter import limiter  # noqa: E402
 
 
 @asynccontextmanager
@@ -212,6 +215,7 @@ app = FastAPI(
 # ── Rate limiting ──────────────────────────────────────────────────────────────
 app.state.limiter = limiter
 
+
 async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
     return JSONResponse(
         status_code=429,
@@ -245,7 +249,7 @@ app.include_router(analysis.router,     prefix="/api/v1/analysis",     tags=["AI
 app.include_router(rankings.router,     prefix="/api/v1/rankings",     tags=["Rankings"])
 app.include_router(ai_feedback.router,  prefix="/api/v1/ai-feedback",  tags=["AI Feedback"])
 app.include_router(applications.router, prefix="/api/v1/applications", tags=["Applications"])
-app.include_router(notifications.router,prefix="/api/v1/notifications",tags=["Notifications"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 
 logger.info("app.main: %d routes registered — module load complete", len(app.routes))
 
@@ -263,7 +267,9 @@ def health():
         "email": {
             "transport": "resend" if _resend_configured else "none",
             "configured": _resend_configured,
-            "from_address": settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "onboarding@resend.dev",
+            "from_address": (
+                settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "onboarding@resend.dev"
+            ),
         },
     }
 

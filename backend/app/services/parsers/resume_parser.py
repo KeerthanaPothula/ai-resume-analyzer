@@ -1,5 +1,4 @@
 import re
-import os
 from typing import Optional
 import fitz  # PyMuPDF
 from docx import Document
@@ -51,7 +50,7 @@ def extract_phone(text: str) -> Optional[str]:
 
 def extract_name(text: str) -> Optional[str]:
     """Extract candidate name from first few lines."""
-    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    lines = [ln.strip() for ln in text.split('\n') if ln.strip()]
     if lines:
         first_line = lines[0]
         # Likely a name if it's 2-4 words, no special chars, not all caps keywords

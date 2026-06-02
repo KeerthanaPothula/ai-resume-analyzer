@@ -105,11 +105,10 @@ def test_download_own_resume_returns_file(client, candidate_user, candidate_head
     assert resp.headers["content-type"].startswith("application/pdf")
 
 
-def test_download_other_users_resume_returns_403(client, candidate_user,
-                                                  candidate_user2,
-                                                  candidate_headers,
-                                                  candidate2_headers,
-                                                  db, tmp_path):
+def test_download_other_users_resume_returns_403(
+    client, candidate_user, candidate_user2,
+    candidate_headers, candidate2_headers, db, tmp_path
+):
     from app.models.resume import Resume
 
     fake_file = tmp_path / "other.pdf"

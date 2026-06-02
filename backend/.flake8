@@ -13,3 +13,6 @@ exclude =
 per-file-ignores =
     # test files freely import fixtures without using them directly
     tests/*: F401
+    # HTML email templates are embedded strings — line-length cannot be fixed
+    # without corrupting SVG path data or CSS style attributes sent in emails
+    app/services/email.py: E501

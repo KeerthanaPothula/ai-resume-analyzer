@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select
-from typing import List, Optional
 from pydantic import BaseModel
 
 from app.db.database import get_db
@@ -82,7 +82,7 @@ def rank_candidates_for_job(
         r.resume_id
         for r in db.query(CandidateRanking).filter(
             CandidateRanking.job_id == job_id,
-            CandidateRanking.is_applied == True,
+            CandidateRanking.is_applied == True,  # noqa: E712
         ).all()
     }
     resume_ids = [rid for rid in resume_ids if rid in applied_ids]
@@ -211,7 +211,7 @@ def get_rankings_for_job(
         db.query(CandidateRanking)
         .filter(
             CandidateRanking.job_id == job_id,
-            CandidateRanking.is_applied == True,
+            CandidateRanking.is_applied == True,  # noqa: E712
         )
         .order_by(CandidateRanking.rank)
         .all()
@@ -258,7 +258,7 @@ def get_my_applications(
         db.query(CandidateRanking)
         .filter(
             CandidateRanking.resume_id.in_(resume_ids),
-            CandidateRanking.is_applied == True,
+            CandidateRanking.is_applied == True,  # noqa: E712
         )
         .order_by(CandidateRanking.updated_at.desc().nullslast(), CandidateRanking.created_at.desc())
         .all()
@@ -371,7 +371,10 @@ def update_ranking_entry(
             ),
             ApplicationStatus.rejected.value: (
                 "Application Update",
-                f"Thank you for applying to \"{job.title}\" at {job.company or 'the company'}. The position has been filled.",
+                (
+                    f"Thank you for applying to \"{job.title}\" at "
+                    f"{job.company or 'the company'}. The position has been filled."
+                ),
                 NotificationType.rejected,
             ),
             ApplicationStatus.accepted.value: (

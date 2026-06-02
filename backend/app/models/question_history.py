@@ -6,10 +6,10 @@ from app.db.database import Base
 class UserQuestionHistory(Base):
     __tablename__ = "user_question_history"
 
-    id            = Column(Integer, primary_key=True, index=True)
-    user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     question_text = Column(Text, nullable=False)
-    generated_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (
         # (user_id, generated_at) — PostgreSQL uses this for both the

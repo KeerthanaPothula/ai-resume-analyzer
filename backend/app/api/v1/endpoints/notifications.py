@@ -55,7 +55,7 @@ def get_unread_count(
     try:
         count = (
             db.query(Notification)
-            .filter(Notification.user_id == current_user.id, Notification.read == False)
+            .filter(Notification.user_id == current_user.id, Notification.read == False)  # noqa: E712
             .count()
         )
         return {"count": count}
@@ -93,7 +93,7 @@ def mark_all_read(
     try:
         db.query(Notification).filter(
             Notification.user_id == current_user.id,
-            Notification.read == False,
+            Notification.read == False,  # noqa: E712
         ).update({"read": True})
         db.commit()
     except ProgrammingError:

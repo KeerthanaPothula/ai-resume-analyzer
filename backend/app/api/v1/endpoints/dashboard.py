@@ -94,7 +94,7 @@ def recruiter_summary(
             db.query(CandidateRanking)
             .filter(
                 CandidateRanking.job_id.in_(job_ids),
-                CandidateRanking.is_applied == True,
+                CandidateRanking.is_applied == True,  # noqa: E712
             )
             .all()
         )

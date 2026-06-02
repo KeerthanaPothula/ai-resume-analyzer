@@ -18,19 +18,20 @@ os.environ["UPLOAD_DIR"] = "./test_uploads"
 os.environ["RESEND_API_KEY"] = ""
 
 # ── Now safe to import app modules ─────────────────────────────────────────────
-import pytest
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
+import pytest  # noqa: E402
+from sqlalchemy import create_engine, text  # noqa: E402, F401
+from sqlalchemy.orm import sessionmaker  # noqa: E402, F401
+from fastapi.testclient import TestClient  # noqa: E402
 
-import app.models  # noqa: F401 — populate SQLAlchemy mapper registry
+import app.models  # noqa: E402, F401 — populate SQLAlchemy mapper registry
 
-from app.main import app
-from app.db.database import Base, engine as _app_engine, get_db, SessionLocal
-from app.core.security import get_password_hash, create_access_token
-from app.models.user import User, UserRole
-from app.models.resume import Resume
-from app.models.job import JobDescription
+from app.main import app  # noqa: E402
+from app.db.database import Base, engine as _app_engine, get_db, SessionLocal  # noqa: E402
+from app.core.security import get_password_hash, create_access_token  # noqa: E402
+from app.models.user import User, UserRole  # noqa: E402
+from app.models.resume import Resume  # noqa: E402
+from app.models.job import JobDescription  # noqa: E402
+
 
 # ── Session-scoped: create all tables once ────────────────────────────────────
 

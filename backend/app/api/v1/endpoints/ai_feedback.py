@@ -1,16 +1,15 @@
 import logging
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from typing import Any, Dict
-
-logger = logging.getLogger(__name__)
 
 from app.core.limiter import limiter
+from app.core.security import get_current_active_user
 from app.db.database import get_db
-from app.models.user import User
-from app.models.resume import Resume
 from app.models.job import JobDescription, ATSScore
+from app.models.resume import Resume
+from app.models.user import User
 from app.schemas.ai_feedback import (
     LLMStatusResponse,
     ResumeFeedbackResponse,
@@ -20,9 +19,10 @@ from app.schemas.ai_feedback import (
     ChatRequest,
     ChatResponse,
 )
-from app.core.security import get_current_active_user
-from app.services.ai.llm_service import LLMService, get_llm_service
 from app.services import question_history as qh
+from app.services.ai.llm_service import LLMService, get_llm_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

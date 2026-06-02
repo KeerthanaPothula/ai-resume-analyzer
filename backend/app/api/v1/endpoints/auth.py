@@ -3,8 +3,6 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-
-logger = logging.getLogger(__name__)
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -33,6 +31,8 @@ from app.schemas.user import (
     UserResponse,
     VerifyEmailRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -112,7 +112,10 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
                 user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
             )
     else:
-        logger.info("[DEV] Verify URL for %s (valid %dh): %s", user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url)
+        logger.info(
+            "[DEV] Verify URL for %s (valid %dh): %s",
+            user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+        )
 
     response: dict = {
         "message": "Account created! Please check your email to verify your account before signing in.",
@@ -261,7 +264,10 @@ async def forgot_password(
             )
         return generic_response
     else:
-        logger.info("[DEV] Reset URL for %s (valid %dmin): %s", user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url)
+        logger.info(
+            "[DEV] Reset URL for %s (valid %dmin): %s",
+            user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url,
+        )
         return {**generic_response, "dev_reset_url": reset_url}
 
 
@@ -394,5 +400,8 @@ async def resend_verification(
             logger.error("Failed to resend verification email to %s: %s", user.email, exc)
         return generic_response
     else:
-        logger.info("[DEV] Resend verify URL for %s (valid %dh): %s", user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url)
+        logger.info(
+            "[DEV] Resend verify URL for %s (valid %dh): %s",
+            user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+        )
         return {**generic_response, "dev_verify_url": verify_url}

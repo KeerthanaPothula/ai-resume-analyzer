@@ -35,7 +35,7 @@ def list_candidates(
         .join(User, User.id == Resume.user_id)
         .join(latest_sq, latest_sq.c.latest_id == Resume.id)
         .filter(User.role == UserRole.candidate)
-        .filter(User.is_active == True)
+        .filter(User.is_active == True)  # noqa: E712
         .order_by(Resume.created_at.desc())
         .all()
     )

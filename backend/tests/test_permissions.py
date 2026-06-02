@@ -38,8 +38,9 @@ def test_unauthenticated_cannot_create_job(client):
 
 # ── Resume access permissions ──────────────────────────────────────────────────
 
-def test_candidate_can_only_see_own_resumes(client, candidate_user, candidate_user2,
-                                             candidate_headers, db):
+def test_candidate_can_only_see_own_resumes(
+    client, candidate_user, candidate_user2, candidate_headers, db
+):
     # Give candidate2 a resume
     resume = Resume(
         user_id=candidate_user2.id,
@@ -58,9 +59,9 @@ def test_candidate_can_only_see_own_resumes(client, candidate_user, candidate_us
     assert resume.id not in ids
 
 
-def test_candidate_cannot_access_other_users_resume_by_id(client, candidate_user,
-                                                           candidate_user2,
-                                                           candidate_headers, db):
+def test_candidate_cannot_access_other_users_resume_by_id(
+    client, candidate_user, candidate_user2, candidate_headers, db
+):
     resume = Resume(
         user_id=candidate_user2.id,
         filename="private.pdf",
@@ -108,11 +109,9 @@ def test_candidate_cannot_rank_candidates(client, recruiter_user, candidate_head
     assert resp.status_code == 403
 
 
-def test_recruiter_cannot_view_other_recruiters_rankings(client,
-                                                          recruiter_user,
-                                                          recruiter_user2,
-                                                          recruiter_headers,
-                                                          db):
+def test_recruiter_cannot_view_other_recruiters_rankings(
+    client, recruiter_user, recruiter_user2, recruiter_headers, db
+):
     # Job owned by recruiter2
     job = JobDescription(
         recruiter_id=recruiter_user2.id,
@@ -158,9 +157,9 @@ def test_admin_can_delete_any_resume(client, candidate_user, admin_headers, db):
     assert resp.status_code == 204
 
 
-def test_candidate_cannot_delete_other_users_resume(client, candidate_user,
-                                                     candidate_user2,
-                                                     candidate_headers, db):
+def test_candidate_cannot_delete_other_users_resume(
+    client, candidate_user, candidate_user2, candidate_headers, db
+):
     resume = Resume(
         user_id=candidate_user2.id,
         filename="keep.pdf",
