@@ -9,6 +9,13 @@ import React, {
 import { User, AuthState } from "../types";
 import { authApi } from "../lib/api";
 
+export interface RegisterResult {
+  message: string;
+  email: string;
+  dev_verify_url?: string;
+  email_delivery_failed?: boolean;
+}
+
 interface AuthContextType extends AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -17,7 +24,7 @@ interface AuthContextType extends AuthState {
     full_name: string;
     password: string;
     role: string;
-  }) => Promise<void>;
+  }) => Promise<RegisterResult>;
   logout: () => Promise<void>;
 }
 
@@ -89,10 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       full_name: string;
       password: string;
       role: string;
-    }) => {
-      // Registration now requires email verification before login is permitted.
-      // The backend returns a message + email only — no tokens are issued yet.
-      await authApi.register(data);
+    }): Promise<RegisterResult> => {
+      const res = await authApi.register(data);
+      return res.data as RegisterResult;
     },
     []
   );

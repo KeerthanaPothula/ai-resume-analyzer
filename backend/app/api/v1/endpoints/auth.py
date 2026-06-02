@@ -128,14 +128,17 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
         "message": "Account created! Please check your email to verify your account before signing in.",
         "email": user.email,
     }
-    if not settings.email_enabled or email_delivery_failed:
-        # Include URL so user can verify even when email is not configured or delivery failed
-        response["dev_verify_url"] = verify_url
     if email_delivery_failed:
+        response["email_delivery_failed"] = True
         response["message"] = (
-            "Account created! Email delivery failed — use the verify_url in this response "
-            "to activate your account."
+            "Account created! Email delivery is currently unavailable. "
+            "Use the verification link to activate your account."
         )
+        if settings.fallback_url_enabled:
+            response["dev_verify_url"] = verify_url
+    elif not settings.email_enabled:
+        # No transport at all — dev/test, always expose URL
+        response["dev_verify_url"] = verify_url
     return response
 
 
@@ -271,19 +274,23 @@ async def forgot_password(
     )
 
     if settings.email_enabled:
+        email_delivery_failed = False
         try:
             from app.services.email import send_reset_email
             await send_reset_email(user.email, reset_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
             logger.info("Password reset email dispatched OK — to=%s", user.email)
         except Exception as exc:
+            email_delivery_failed = True
             logger.error(
                 "[EMAIL-FAIL] forgot-password — to=%s  error=%s: %s  url=%s",
                 user.email, type(exc).__name__, exc, reset_url,
             )
+        if email_delivery_failed and settings.fallback_url_enabled:
+            return {**generic_response, "email_delivery_failed": True, "dev_reset_url": reset_url}
         return generic_response
     else:
         logger.info(
-            "[DEV] RESEND_API_KEY not set — skipping email delivery for %s",
+            "[DEV] email not configured — skipping email delivery for %s",
             user.email,
         )
         return {**generic_response, "dev_reset_url": reset_url}
@@ -416,19 +423,27 @@ async def resend_verification(
     )
 
     if settings.email_enabled:
+        email_delivery_failed = False
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)
             logger.info("Verification email re-dispatched OK — to=%s", user.email)
         except Exception as exc:
+            email_delivery_failed = True
             logger.error(
                 "[EMAIL-FAIL] resend-verification — to=%s  error=%s: %s  url=%s",
                 user.email, type(exc).__name__, exc, verify_url,
             )
+        if email_delivery_failed:
+            response = dict(generic_response)
+            response["email_delivery_failed"] = True
+            if settings.fallback_url_enabled:
+                response["dev_verify_url"] = verify_url
+            return response
         return generic_response
     else:
         logger.info(
-            "[DEV] RESEND_API_KEY not set — skipping email delivery for %s",
+            "[DEV] email not configured — skipping email delivery for %s",
             user.email,
         )
         return {**generic_response, "dev_verify_url": verify_url}

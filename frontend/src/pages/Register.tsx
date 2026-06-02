@@ -89,8 +89,13 @@ export default function Register() {
 
     setLoading(true);
     try {
-      await register({ full_name: fullName, email, password, role });
-      navigate(`/verification-pending?email=${encodeURIComponent(email)}`);
+      const result = await register({ full_name: fullName, email, password, role });
+      navigate(`/verification-pending?email=${encodeURIComponent(email)}`, {
+        state: {
+          devVerifyUrl: result?.dev_verify_url,
+          emailDeliveryFailed: result?.email_delivery_failed ?? false,
+        },
+      });
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??

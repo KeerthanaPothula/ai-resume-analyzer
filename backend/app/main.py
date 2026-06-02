@@ -104,6 +104,22 @@ async def lifespan(app: FastAPI):
             "Remove RESEND_API_KEY from Render environment variables if you no longer need Resend."
         )
 
+    if settings.EMAIL_FALLBACK_ENABLED:
+        logger.info(
+            "Email fallback: ENABLED (EMAIL_FALLBACK_ENABLED=true) -- "
+            "verify/reset URLs returned in API responses when delivery fails"
+        )
+    elif settings.DEBUG:
+        logger.info(
+            "Email fallback: enabled via DEBUG=true -- "
+            "verify/reset URLs returned in API responses when delivery fails"
+        )
+    else:
+        logger.info(
+            "Email fallback: disabled -- set EMAIL_FALLBACK_ENABLED=true in Render to expose "
+            "verify/reset URLs in API responses when email delivery fails"
+        )
+
     # ── CORS diagnostic — always visible in Render logs ──────────────────────
     logger.info("CORS allowed origins (%d):", len(settings.ALLOWED_ORIGINS))
     for origin in settings.ALLOWED_ORIGINS:
@@ -291,6 +307,9 @@ def health():
             "transport": _transport,
             "configured": _transport != "none",
             "from_address": _from,
+            "smtp_configured": settings.smtp_enabled,
+            "resend_configured": bool(settings.RESEND_API_KEY),
+            "fallback_enabled": settings.fallback_url_enabled,
         },
     }
 
@@ -348,6 +367,32 @@ def resend_debug():
             if _configured
             else "Set RESEND_API_KEY in Render Environment Variables, then redeploy."
         ),
+    }
+
+
+@app.post("/api/v1/debug/email-status", tags=["Debug"])
+def email_status_debug():
+    """
+    Email transport and fallback configuration status.
+
+    Returns which transport is active, whether each transport is configured,
+    and whether fallback URL mode is enabled. No auth required.
+    """
+    _transport = settings.active_email_transport
+    return {
+        "transport": _transport,
+        "email_enabled": settings.email_enabled,
+        "smtp_configured": settings.smtp_enabled,
+        "resend_configured": bool(settings.RESEND_API_KEY),
+        "fallback_enabled": settings.fallback_url_enabled,
+        "details": {
+            "smtp_host": settings.SMTP_HOST,
+            "smtp_port": settings.SMTP_PORT,
+            "smtp_user": settings.SMTP_USER,
+            "resend_from": settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set)",
+            "debug_mode": settings.DEBUG,
+            "email_fallback_enabled_flag": settings.EMAIL_FALLBACK_ENABLED,
+        },
     }
 
 

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Brain, Mail, RefreshCw, Loader2, CheckCircle2, ArrowLeft,
+  AlertTriangle, ExternalLink,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { authApi } from "../lib/api";
@@ -10,9 +11,18 @@ import { authApi } from "../lib/api";
 export default function VerificationPending() {
   const [params] = useSearchParams();
   const email = params.get("email") ?? "";
+  const location = useLocation();
+
+  const initial = (location.state ?? {}) as {
+    devVerifyUrl?: string;
+    emailDeliveryFailed?: boolean;
+  };
+
   const [cooldown, setCooldown] = useState(0);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [devVerifyUrl, setDevVerifyUrl] = useState<string | undefined>(initial.devVerifyUrl);
+  const [emailDeliveryFailed, setEmailDeliveryFailed] = useState(initial.emailDeliveryFailed ?? false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -24,10 +34,18 @@ export default function VerificationPending() {
     if (cooldown > 0 || sending || !email) return;
     setSending(true);
     try {
-      await authApi.resendVerification(email);
-      setSent(true);
-      setCooldown(60);
-      toast.success("Verification email sent!");
+      const res = await authApi.resendVerification(email);
+      const data = (res.data ?? {}) as { dev_verify_url?: string; email_delivery_failed?: boolean };
+      if (data.email_delivery_failed) {
+        setEmailDeliveryFailed(true);
+        if (data.dev_verify_url) setDevVerifyUrl(data.dev_verify_url);
+        toast.error("Email delivery unavailable. Use the verification link below.");
+      } else {
+        setSent(true);
+        setEmailDeliveryFailed(false);
+        setCooldown(60);
+        toast.success("Verification email sent!");
+      }
     } catch {
       toast.error("Failed to send. Please try again.");
     } finally {
@@ -59,26 +77,71 @@ export default function VerificationPending() {
 
           {/* Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
-              <Mail className="w-10 h-10 text-sky-400" />
+            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${
+              emailDeliveryFailed
+                ? "bg-amber-500/10 border border-amber-500/20"
+                : "bg-sky-500/10 border border-sky-500/20"
+            }`}>
+              {emailDeliveryFailed
+                ? <AlertTriangle className="w-10 h-10 text-amber-400" />
+                : <Mail className="w-10 h-10 text-sky-400" />
+              }
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
-            Check your inbox
-          </h1>
+          {emailDeliveryFailed ? (
+            <>
+              <h1 className="text-2xl font-bold text-white text-center mb-2">
+                Email delivery unavailable
+              </h1>
+              <p className="text-slate-400 text-sm text-center leading-relaxed mb-1">
+                We couldn't send a verification email to
+              </p>
+              {email && (
+                <p className="text-sky-400 font-medium text-center text-sm mb-4 break-all">
+                  {email}
+                </p>
+              )}
+              <p className="text-slate-400 text-sm text-center leading-relaxed mb-6">
+                Your account was created successfully. Use the button below to verify and activate it.
+              </p>
 
-          <p className="text-slate-400 text-sm text-center leading-relaxed mb-1">
-            We sent a verification link to
-          </p>
-          {email && (
-            <p className="text-sky-400 font-medium text-center text-sm mb-5 break-all">
-              {email}
-            </p>
+              {devVerifyUrl ? (
+                <a
+                  href={devVerifyUrl}
+                  className="btn-primary w-full justify-center py-2.5 mb-3 flex items-center gap-2 no-underline"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Verify Account
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                </a>
+              ) : (
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 mb-4 text-center">
+                  <p className="text-amber-300 text-sm leading-relaxed">
+                    Email delivery is down and the admin has not enabled fallback links.
+                    Please contact support to get your account activated.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-white text-center mb-2">
+                Check your inbox
+              </h1>
+              <p className="text-slate-400 text-sm text-center leading-relaxed mb-1">
+                We sent a verification link to
+              </p>
+              {email && (
+                <p className="text-sky-400 font-medium text-center text-sm mb-5 break-all">
+                  {email}
+                </p>
+              )}
+              <p className="text-slate-400 text-sm text-center leading-relaxed mb-8">
+                Click the link in the email to activate your account. The link expires in 24 hours.
+              </p>
+            </>
           )}
-          <p className="text-slate-400 text-sm text-center leading-relaxed mb-8">
-            Click the link in the email to activate your account. The link expires in 24 hours.
-          </p>
 
           {/* Resend button */}
           <button
@@ -90,12 +153,14 @@ export default function VerificationPending() {
               <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
             ) : cooldown > 0 ? (
               <><RefreshCw className="w-4 h-4" /> Resend in {cooldown}s</>
+            ) : emailDeliveryFailed ? (
+              <><RefreshCw className="w-4 h-4" /> Retry sending email</>
             ) : (
               <><RefreshCw className="w-4 h-4" /> {sent ? "Resend email" : "Resend verification email"}</>
             )}
           </button>
 
-          {sent && (
+          {sent && !emailDeliveryFailed && (
             <motion.p
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
@@ -115,13 +180,14 @@ export default function VerificationPending() {
           </Link>
         </div>
 
-        {/* Tip */}
-        <div className="mt-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-          <p className="text-xs text-slate-400 leading-relaxed">
-            <span className="text-slate-300 font-medium">Tip:</span> Check your spam or junk
-            folder if you don't see the email within a few minutes.
-          </p>
-        </div>
+        {!emailDeliveryFailed && (
+          <div className="mt-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <span className="text-slate-300 font-medium">Tip:</span> Check your spam or junk
+              folder if you don't see the email within a few minutes.
+            </p>
+          </div>
+        )}
       </motion.div>
     </div>
   );

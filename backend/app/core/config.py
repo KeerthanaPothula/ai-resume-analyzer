@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: Optional[str] = None  # Overrides SMTP_USER / RESEND_FROM_EMAIL as display From
     EMAILS_FROM_NAME: str = "RecruitAI"
 
+    # Email fallback — when True, verify/reset URLs are returned in API responses on delivery failure.
+    # Safe to set in production when SMTP/Resend is broken and you need users to self-verify.
+    EMAIL_FALLBACK_ENABLED: bool = False
+
     @property
     def smtp_enabled(self) -> bool:
         """True when SMTP credentials are fully configured."""
@@ -86,6 +90,11 @@ class Settings(BaseSettings):
     def email_enabled(self) -> bool:
         """True when either Resend or SMTP is configured."""
         return bool(self.RESEND_API_KEY) or self.smtp_enabled
+
+    @property
+    def fallback_url_enabled(self) -> bool:
+        """True when verify/reset URLs should be included in API responses on delivery failure."""
+        return self.DEBUG or self.EMAIL_FALLBACK_ENABLED
 
     @property
     def active_email_transport(self) -> str:
