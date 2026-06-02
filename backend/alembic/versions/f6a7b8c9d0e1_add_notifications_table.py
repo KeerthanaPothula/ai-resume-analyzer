@@ -14,36 +14,41 @@ down_revision = 'e4f5a6b7c8d9'
 branch_labels = None
 depends_on = None
 
-_notificationtype_enum = sa.Enum(
-    'application_received', 'status_updated', 'interview_scheduled',
-    'shortlisted', 'rejected', 'accepted',
-    name='notificationtype',
-    create_type=False,  # type lifecycle managed explicitly via .create()/.drop() below
-)
-
 
 def upgrade():
-    _notificationtype_enum.create(op.get_bind(), checkfirst=True)
+    # PostgreSQL has no CREATE TYPE IF NOT EXISTS; use a PL/pgSQL exception
+    # block so retried deployments (type already exists from a previous
+    # partially-applied run) don't raise DuplicateObject and abort the deploy.
+    op.execute(sa.text(
+        "DO $$ BEGIN "
+        "  CREATE TYPE notificationtype AS ENUM ("
+        "    'application_received','status_updated','interview_scheduled',"
+        "    'shortlisted','rejected','accepted');"
+        "EXCEPTION WHEN duplicate_object THEN NULL;"
+        "END $$"
+    ))
 
-    op.create_table(
-        'notifications',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False),
-        sa.Column('title', sa.String(), nullable=False),
-        sa.Column('message', sa.Text(), nullable=False),
-        sa.Column('type', _notificationtype_enum, nullable=True),
-        sa.Column('read', sa.Boolean(), nullable=False, server_default='0'),
-        sa.Column('action_url', sa.String(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    with op.batch_alter_table('notifications', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_notifications_id'), ['id'], unique=False)
+    # IF NOT EXISTS makes this idempotent on repeated migration attempts.
+    op.execute(sa.text(
+        "CREATE TABLE IF NOT EXISTS notifications ("
+        "  id         SERIAL       NOT NULL,"
+        "  user_id    INTEGER      NOT NULL REFERENCES users(id),"
+        "  title      VARCHAR      NOT NULL,"
+        "  message    TEXT         NOT NULL,"
+        "  type       notificationtype,"
+        "  read       BOOLEAN      NOT NULL DEFAULT FALSE,"
+        "  action_url VARCHAR,"
+        "  created_at TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP,"
+        "  PRIMARY KEY (id)"
+        ")"
+    ))
+
+    op.execute(sa.text(
+        "CREATE INDEX IF NOT EXISTS ix_notifications_id ON notifications (id)"
+    ))
 
 
 def downgrade():
-    with op.batch_alter_table('notifications', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_notifications_id'))
-
-    op.drop_table('notifications')
-    _notificationtype_enum.drop(op.get_bind(), checkfirst=True)
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_notifications_id"))
+    op.execute(sa.text("DROP TABLE IF EXISTS notifications"))
+    op.execute(sa.text("DROP TYPE  IF EXISTS notificationtype"))
