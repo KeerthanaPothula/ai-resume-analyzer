@@ -246,15 +246,29 @@ class LLMService:
         job_description: str,
     ) -> Dict[str, Any]:
         """Match a resume against a pasted job description without needing a saved job."""
+        logger.info(
+            "LLMService.quick_job_match: provider=%r available=%s raw_text_len=%d jd_len=%d",
+            self.provider, self.is_available, len(raw_text), len(job_description),
+        )
+
+        if not self.is_available:
+            logger.info("LLMService.quick_job_match: no LLM configured — returning template")
+            return self._template_quick_match(job_title)
+
         prompt = _QUICK_MATCH_PROMPT.format(
             resume_text=raw_text[:2500],
             job_title=job_title,
             job_description=job_description[:2000],
         )
 
+        logger.info("LLMService.quick_job_match: calling _call_llm (prompt_len=%d)", len(prompt))
         data = await self._call_llm(prompt)
+
         if not data:
+            logger.info("LLMService.quick_job_match: LLM returned no data — using template")
             return self._template_quick_match(job_title)
+
+        logger.info("LLMService.quick_job_match: LLM returned data (%d keys)", len(data))
 
         return {
             "match_score": float(data.get("match_score", 0)),

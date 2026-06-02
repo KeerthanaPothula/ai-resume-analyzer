@@ -146,26 +146,72 @@ async def quick_job_match(
     Match a resume against a pasted job description without needing a saved job.
     Candidates can paste any JD text and get an instant AI analysis.
     """
-    resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
-    if not resume:
-        raise HTTPException(status_code=404, detail="Resume not found")
-    if resume.user_id != current_user.id and current_user.role.value not in ("admin", "recruiter"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    svc = get_llm_service()
+    logger.info(
+        "quick-match: entry — user_id=%d resume_id=%d job_title=%r jd_len=%d",
+        current_user.id, body.resume_id, body.job_title, len(body.job_description),
+    )
     try:
-        result = await svc.quick_job_match(
-            raw_text=resume.raw_text or "",
-            job_title=body.job_title,
-            job_description=body.job_description,
-        )
-        provider = svc.provider if svc.is_available else "template"
-    except Exception:
-        logger.exception("Unhandled error in quick_job_match; using template")
-        result = LLMService._template_quick_match(body.job_title)
-        provider = "template"
+        resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
+        if not resume:
+            logger.warning(
+                "quick-match: resume_id=%d not found — user_id=%d",
+                body.resume_id, current_user.id,
+            )
+            raise HTTPException(status_code=404, detail="Resume not found")
+        if resume.user_id != current_user.id and current_user.role.value not in ("admin", "recruiter"):
+            logger.warning(
+                "quick-match: user_id=%d not authorized for resume_id=%d",
+                current_user.id, body.resume_id,
+            )
+            raise HTTPException(status_code=403, detail="Not authorized")
 
-    return QuickMatchResponse(provider=provider, **result)
+        logger.info(
+            "quick-match: resume found — id=%d raw_text_len=%d skills=%d",
+            resume.id, len(resume.raw_text or ""), len(resume.extracted_skills or []),
+        )
+
+        svc = get_llm_service()
+        logger.info(
+            "quick-match: LLM provider=%r available=%s",
+            svc.provider, svc.is_available,
+        )
+
+        try:
+            result = await svc.quick_job_match(
+                raw_text=resume.raw_text or "",
+                job_title=body.job_title,
+                job_description=body.job_description,
+            )
+            provider = svc.provider if svc.is_available else "template"
+            logger.info(
+                "quick-match: svc returned OK — provider=%r match_score=%s",
+                provider, result.get("match_score"),
+            )
+        except Exception:
+            logger.exception(
+                "quick-match: svc.quick_job_match raised — falling back to template"
+            )
+            result = LLMService._template_quick_match(body.job_title)
+            provider = "template"
+
+        response_obj = QuickMatchResponse(provider=provider, **result)
+        logger.info(
+            "quick-match: response built OK — score=%.1f provider=%r",
+            response_obj.match_score, provider,
+        )
+        return response_obj
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "quick-match: unhandled top-level exception — user_id=%d resume_id=%d",
+            current_user.id, body.resume_id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error during match analysis",
+        )
 
 
 @router.post("/chat", response_model=ChatResponse)
