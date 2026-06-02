@@ -1,11 +1,12 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+from app.core.limiter import limiter
 from app.db.database import get_db
 from app.models.user import User
 from app.models.resume import Resume
@@ -50,7 +51,9 @@ async def test_llm_connection(
 
 
 @router.post("/resume/{resume_id}", response_model=ResumeFeedbackResponse)
+@limiter.limit("10/minute")
 async def generate_resume_feedback(
+    request: Request,
     resume_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -92,7 +95,9 @@ async def generate_resume_feedback(
 
 
 @router.post("/resume/{resume_id}/job/{job_id}", response_model=JobMatchFeedbackResponse)
+@limiter.limit("10/minute")
 async def generate_job_match_feedback(
+    request: Request,
     resume_id: int,
     job_id: int,
     db: Session = Depends(get_db),
@@ -146,7 +151,9 @@ async def generate_job_match_feedback(
 
 
 @router.post("/quick-match", response_model=QuickMatchResponse)
+@limiter.limit("10/minute")
 async def quick_job_match(
+    request: Request,
     body: QuickMatchRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -231,7 +238,9 @@ async def quick_job_match(
 
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit("20/minute")
 async def career_chat(
+    request: Request,
     body: ChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

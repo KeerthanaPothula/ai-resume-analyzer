@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -215,14 +216,27 @@ def get_rankings_for_job(
         .order_by(CandidateRanking.rank)
         .all()
     )
-    results = []
-    for r in rankings:
-        resume = db.query(Resume).filter(Resume.id == r.resume_id).first()
-        ats = db.query(ATSScore).filter(
-            ATSScore.resume_id == r.resume_id, ATSScore.job_id == job_id
-        ).first()
-        results.append(_ranking_to_dict(r, resume, ats))
-    return results
+    if not rankings:
+        return []
+
+    # Bulk-load resumes and ATS scores — avoids N+1 queries (2 queries total)
+    resume_ids = [r.resume_id for r in rankings]
+    resume_map = {
+        r.id: r
+        for r in db.query(Resume).filter(Resume.id.in_(resume_ids)).all()
+    }
+    ats_map = {
+        a.resume_id: a
+        for a in db.query(ATSScore).filter(
+            ATSScore.resume_id.in_(resume_ids),
+            ATSScore.job_id == job_id,
+        ).all()
+    }
+
+    return [
+        _ranking_to_dict(r, resume_map.get(r.resume_id), ats_map.get(r.resume_id))
+        for r in rankings
+    ]
 
 
 # ── GET /my-applications — candidate sees their own application statuses ───────
@@ -250,9 +264,16 @@ def get_my_applications(
         .all()
     )
 
+    # Bulk-load all referenced jobs — avoids N+1 (1 query total)
+    job_ids = list({r.job_id for r in rankings})
+    job_map = {
+        j.id: j
+        for j in db.query(JobDescription).filter(JobDescription.id.in_(job_ids)).all()
+    }
+
     results = []
     for r in rankings:
-        job = db.query(JobDescription).filter(JobDescription.id == r.job_id).first()
+        job = job_map.get(r.job_id)
         resume = resume_map.get(r.resume_id)
         results.append({
             "ranking_id": r.id,

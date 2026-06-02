@@ -1,0 +1,5 @@
+# Test dependencies — install in addition to requirements_local.txt
+# pip install -r requirements_test.txt
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+httpx>=0.27.0        # already in requirements_local.txt — included for explicitness

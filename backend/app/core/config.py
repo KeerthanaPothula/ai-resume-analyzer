@@ -13,8 +13,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./resume.db"
 
-    # JWT
-    SECRET_KEY: str = "supersecretkey123456789abcdef_change_in_production"
+    # JWT — SECRET_KEY has no default; the app will refuse to start if it is not set.
+    # Local dev: add SECRET_KEY=<random 64-char hex> to backend/.env
+    # Production (Render): the dashboard auto-generates this value.
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7

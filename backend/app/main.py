@@ -31,7 +31,6 @@ except Exception:
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.endpoints import ai_feedback, analysis, applications, auth, candidates, dashboard, jobs, notifications, rankings, resumes, users
@@ -203,8 +202,10 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="Production-grade AI-powered resume analysis and candidate ranking system",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # Swagger UI and ReDoc are only available when DEBUG=True.
+    # In production, set DEBUG=False (the default) to hide the API schema.
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
 
@@ -228,9 +229,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Static file mount for uploaded resumes ────────────────────────────────────
+# Ensure the upload directory exists at startup.
+# Files are NOT served via a public static mount — use GET /api/v1/resumes/{id}/file
+# which is authenticated and ownership-checked.
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # ── Routers ────────────────────────────────────────────────────────────────────
 app.include_router(auth.router,         prefix="/api/v1/auth",         tags=["Authentication"])
