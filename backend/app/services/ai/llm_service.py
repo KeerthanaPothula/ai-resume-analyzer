@@ -18,8 +18,9 @@ import json
 import logging
 import random
 import re
+from collections import deque
 from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from app.core.config import settings
 
@@ -126,6 +127,183 @@ _SKILL_QUESTION_TEMPLATES: List[str] = [
     "Describe how you have used {skill} to improve system reliability or team productivity.",
     "How do you keep your {skill} knowledge current as the ecosystem evolves?",
 ]
+
+# ── Categorical question pools (behavioral / situational / general-technical) ─
+# Used by _pick_job_match_questions to guarantee a 2-technical + 2-behavioral +
+# 1-situational mix in every generated set.  Kept distinct from
+# _INTERVIEW_QUESTION_POOL so resume-feedback and job-match questions don't
+# converge on the same five strings.
+
+_BEHAVIORAL_POOL: List[str] = [
+    "Tell me about a time you had to make a decision with incomplete information. What was your process?",
+    "Describe a situation where you had to advocate for a technical approach your team initially resisted.",
+    "Tell me about the most challenging feedback you have ever received and how you used it.",
+    "Describe a time you identified a risk that others had overlooked. What did you do?",
+    "Tell me about a time you worked on a cross-functional team where priorities conflicted.",
+    "Describe a situation where you had to deliver bad news to a stakeholder. How did you handle it?",
+    "Tell me about a time you had to quickly get up to speed in an unfamiliar domain.",
+    "Describe a project where the requirements changed significantly mid-development. How did you adapt?",
+    "Tell me about a time you helped resolve a conflict within your team.",
+    "Describe a situation where you had to push back on a request from a senior leader.",
+    "Tell me about a time you set a stretch goal for yourself. Did you achieve it? What did you learn?",
+    "Describe a project that you would do completely differently with what you know now.",
+    "Tell me about a time you had to build consensus across teams with different objectives.",
+    "Describe a situation where your technical judgment turned out to be wrong. How did you recover?",
+    "Tell me about a time you had to work on a system or codebase you inherited in poor shape.",
+    "Describe a situation where you had to prioritize long-term quality over short-term velocity.",
+    "Tell me about a time you went beyond your job description to deliver something impactful.",
+    "Describe a moment when you had to make a tough tradeoff between two good options.",
+    "Tell me about a time you brought an outside idea or perspective that improved your team's work.",
+    "Describe a situation where close collaboration with a non-engineering function led to a better outcome.",
+    "Tell me about a time you had to manage competing stakeholder expectations on a single project.",
+    "Describe a situation where you had to work effectively under significant ambiguity or uncertainty.",
+    "Tell me about a time you made a significant technical decision and later had to justify it under scrutiny.",
+    "Describe a project where you took the lead unexpectedly. What was the outcome?",
+    "Tell me about a time you improved team processes or practices that had a lasting impact.",
+    "Describe a situation where you had to balance innovation with stability in a production system.",
+    "Tell me about a time you had to earn the trust of a skeptical colleague or manager.",
+    "Describe a project where scope creep became a real problem. How did you manage it?",
+    "Tell me about a time you had to hold a high bar for quality when there was pressure to cut corners.",
+    "Describe a situation where you used data to change someone's mind about an important decision.",
+    "Tell me about a time you had to work on something that was technically outside your comfort zone.",
+    "Describe a situation where you had to deliver on a commitment despite losing a key team member.",
+    "Tell me about a time you proactively reached out to users or customers to understand their needs.",
+    "Describe a moment when you realized mid-project that your initial approach was fundamentally flawed.",
+    "Tell me about a time you led a technical interview or onboarding process. What worked well?",
+    "Describe a situation where your curiosity or investigation uncovered an unexpected problem.",
+    "Tell me about a time you turned a failing project around. What did you change?",
+    "Describe a situation where you had to operate effectively without a clear manager or direction.",
+    "Tell me about a time a project you worked on had a significant impact you did not anticipate.",
+    "Describe how you have handled a high-severity production incident from detection to resolution.",
+    "Tell me about a time you had to balance being thorough with being fast in a high-stakes situation.",
+    "Describe a time when documentation or lack thereof caused a serious problem. What did you do about it?",
+    "Tell me about a project where success depended on a partner team delivering on time. How did you manage that dependency?",
+    "Describe a time when you had to re-prioritize work in the middle of a sprint or project cycle.",
+    "Tell me about a time you received conflicting direction from two different leaders. How did you handle it?",
+    "Describe a situation where you identified technical toil on your team and drove its elimination.",
+    "Tell me about a time when you had to quickly assess and mitigate a security or compliance risk.",
+    "Describe a project where the goal posts moved more than once. How did you maintain focus?",
+    "Tell me about a time you had to convince a business stakeholder to invest in technical infrastructure.",
+    "Describe how you have contributed to making your engineering team more inclusive or equitable.",
+    "Tell me about a time you had to ship under extreme time pressure — what did you cut, and would you do it again?",
+]
+
+_SITUATIONAL_POOL: List[str] = [
+    "Imagine you inherit a legacy codebase with no documentation and a critical bug in production. Walk me through your first 48 hours.",
+    "You've just joined a team and notice the deploy pipeline breaks several times a week. What is your approach to fixing it?",
+    "Your service's p99 latency tripled overnight and on-call just paged you. Walk me through your incident response.",
+    "Imagine the database underlying a key feature is approaching capacity and queries are slowing down. What do you do?",
+    "A stakeholder requests a feature that you believe will introduce significant technical debt. How do you respond?",
+    "Your team is asked to deliver a large feature in half the estimated time. How do you approach the conversation and the work?",
+    "Imagine you discover a serious security vulnerability in production that was introduced six months ago. What are your next steps?",
+    "You are asked to migrate a high-traffic service to a new technology with no downtime window. How do you plan this?",
+    "A junior engineer on your team is consistently delivering low-quality code under deadline pressure. How do you address this?",
+    "Your team's code review process is creating a bottleneck where PRs wait three to five days. How do you solve this?",
+    "Imagine you need to roll back a major deploy but the rollback procedure has never been tested. What do you do?",
+    "You are tasked with making an architectural decision that will affect five teams. How do you approach alignment?",
+    "A critical third-party API your service depends on has just announced end-of-life in 90 days. What is your plan?",
+    "Your team is asked to build a feature with very unclear requirements from a non-technical product owner. How do you proceed?",
+    "Imagine you have to onboard a new team member who will take over a system you built alone. How do you approach this?",
+    "You receive a bug report but cannot reproduce it locally or in staging — only in production. What is your debugging strategy?",
+    "Your service is hitting rate limits on an external API at peak load. What are your short-term and long-term solutions?",
+    "Imagine you are the on-call engineer and two P1 incidents occur simultaneously. How do you triage and respond?",
+    "You are asked to estimate a project but the requirements are still changing. How do you handle the estimation?",
+    "Your CI/CD pipeline takes 45 minutes and developers are complaining it slows them down. How do you approach optimization?",
+    "Imagine a data breach is suspected. What are your immediate steps before the full scope is known?",
+    "Your team has accumulated significant technical debt in a core service. How do you make the case to address it?",
+    "You are building a new feature and realize it conflicts with a decision another team already shipped. What do you do?",
+    "Imagine you are asked to choose between a faster-to-build but hard-to-scale approach and a slower but architecturally sound one. How do you decide?",
+    "Your team needs to hire a new engineer and you are designing the technical interview. How do you ensure it is fair and effective?",
+]
+
+_GENERAL_TECHNICAL_POOL: List[str] = [
+    "Explain the trade-offs between monolithic and microservices architectures.",
+    "Walk me through how you would design a system that needs to be both highly available and strongly consistent.",
+    "How do you approach writing code that other engineers will need to maintain or extend?",
+    "Describe your mental model for choosing between SQL and NoSQL for a new project.",
+    "How do you think about security when designing a new feature from scratch?",
+    "Walk me through how you would debug a non-deterministic bug that only appears under load.",
+    "How do you approach performance optimization — what do you measure first?",
+    "Describe your process for doing a thorough code review on an unfamiliar system.",
+    "How do you decide how much test coverage is enough for a given piece of code?",
+    "Walk me through how you would migrate a production database with millions of rows safely.",
+    "How do you balance writing reusable abstractions vs. keeping code simple and direct?",
+    "Describe how you would approach building a feature for an audience of 10x the current users.",
+    "How do you evaluate whether to use an open-source library or build the functionality in-house?",
+    "Walk me through a real architecture decision you made and why you chose what you did.",
+    "How do you communicate technical complexity and risk to non-technical stakeholders?",
+    "Describe your approach to incident response — from alert to post-mortem.",
+    "How do you structure a service to make it easy to test, deploy, and observe?",
+    "Walk me through how you set up observability for a new backend service.",
+    "How do you approach capacity planning for a new service before it goes to production?",
+    "Describe how you think about backward compatibility when evolving a public API.",
+    "How do you approach technical documentation — what do you write and what do you skip?",
+    "Walk me through how you would safely split a large monolith into smaller services.",
+    "How do you ensure consistency in distributed transactions across multiple services?",
+    "Describe your approach to dependency management — keeping libraries up-to-date and secure.",
+    "How do you approach working with legacy systems — when to refactor, when to replace, when to leave alone?",
+]
+
+# ── Skill → role-pool hint map ────────────────────────────────────────────────
+# When the job title alone doesn't match a role category, skill keywords can
+# nudge the selection toward the right technical pool.
+
+_SKILL_POOL_HINTS: Dict[str, str] = {
+    "python": "backend",
+    "fastapi": "backend",
+    "django": "backend",
+    "flask": "backend",
+    "node": "backend",
+    "java": "backend",
+    "golang": "backend",
+    "rust": "backend",
+    "docker": "backend",
+    "kubernetes": "backend",
+    "aws": "backend",
+    "gcp": "backend",
+    "azure": "backend",
+    "redis": "backend",
+    "postgresql": "backend",
+    "mysql": "backend",
+    "tensorflow": "ai_ml",
+    "pytorch": "ai_ml",
+    "keras": "ai_ml",
+    "scikit": "ai_ml",
+    "huggingface": "ai_ml",
+    "transformers": "ai_ml",
+    "langchain": "ai_ml",
+    "pandas": "data",
+    "numpy": "data",
+    "spark": "data",
+    "sql": "data",
+    "tableau": "data",
+    "dbt": "data",
+    "airflow": "data",
+    "snowflake": "data",
+}
+
+# ── Per-user recent-question tracking ─────────────────────────────────────────
+# In-memory only; resets on server restart (acceptable — requirement is
+# short-term repetition prevention, not cross-session uniqueness).
+# Maps user_id → deque of up to 20 recently returned question strings.
+
+_USER_RECENT_QUESTIONS: Dict[int, deque] = {}
+_RECENT_LIMIT = 50  # mirrors HISTORY_LIMIT in question_history.py
+
+
+def _get_user_recent(user_id: int) -> Set[str]:
+    return set(_USER_RECENT_QUESTIONS.get(user_id, []))
+
+
+def _record_user_questions(user_id: int, questions: List[str]) -> None:
+    """Update the in-memory deque.  Called only on code paths that have
+    no DB-backed persistence (template fallback in except-blocks, tests)."""
+    if user_id <= 0 or not questions:
+        return
+    if user_id not in _USER_RECENT_QUESTIONS:
+        _USER_RECENT_QUESTIONS[user_id] = deque(maxlen=_RECENT_LIMIT)
+    for q in questions:
+        _USER_RECENT_QUESTIONS[user_id].append(q)
 
 
 # ── Job-match role-specific question banks ────────────────────────────────────
@@ -315,34 +493,99 @@ def _pick_job_match_questions(
     job_title: str,
     skills: List[str],
     count: int = 5,
+    user_id: int = 0,
+    exclude: Optional[Set[str]] = None,
 ) -> List[str]:
     """
-    Sample `count` role-tailored interview questions.
-    Detects role category from the job title, blends the category pool with
-    the general behavioral pool and skill-specific templates, then samples
-    without replacement so every Analyze Match click returns a fresh set.
+    Sample `count` role-tailored interview questions with category diversity.
+
+    Selection guarantee (when pools are large enough):
+      2 technical  — role-specific pool or _GENERAL_TECHNICAL_POOL
+      2 behavioral — _BEHAVIORAL_POOL
+      1 situational — _SITUATIONAL_POOL
+
+    `exclude` — set of question strings to avoid (caller-supplied, typically
+    loaded from PostgreSQL via question_history.get_recent_set).  When None,
+    falls back to the in-memory deque (non-DB code paths: except-block
+    fallbacks, unit tests).  The in-memory deque is updated only on the
+    fallback path so it remains useful for same-session callers without DB.
     """
+    effective_exclude: Set[str]
+    if exclude is not None:
+        effective_exclude = exclude          # DB-backed: caller owns persistence
+    else:
+        effective_exclude = _get_user_recent(user_id)  # in-memory fallback
     title_lower = (job_title or "").lower()
 
-    role_pool: List[str] = []
+    # Detect role category from title
+    detected_category: Optional[str] = None
     for category, keywords in _JOB_ROLE_KEYWORDS.items():
         if any(kw in title_lower for kw in keywords):
-            if category == "ai_ml":
-                role_pool = list(_JM_AI_ML_POOL)
-            elif category == "data":
-                role_pool = list(_JM_DATA_POOL)
-            elif category == "backend":
-                role_pool = list(_JM_BACKEND_POOL)
+            detected_category = category
             break
 
-    pool: List[str] = role_pool + list(_INTERVIEW_QUESTION_POOL)
+    # Fall back to skill-based hint when title is ambiguous
+    if detected_category is None and skills:
+        for raw_skill in (s.lower() for s in skills[:10]):
+            for hint_kw, hint_cat in _SKILL_POOL_HINTS.items():
+                if hint_kw in raw_skill:
+                    detected_category = hint_cat
+                    break
+            if detected_category:
+                break
 
+    # Build the role-specific technical pool
+    if detected_category == "ai_ml":
+        tech_pool: List[str] = list(_JM_AI_ML_POOL)
+    elif detected_category == "data":
+        tech_pool = list(_JM_DATA_POOL)
+    elif detected_category == "backend":
+        tech_pool = list(_JM_BACKEND_POOL)
+    else:
+        tech_pool = list(_GENERAL_TECHNICAL_POOL)
+
+    # Append personalised skill-template questions to the technical pool
     usable = [s for s in (skills or [])[:10] if s and len(s) < 40]
     if usable:
         for template in _SKILL_QUESTION_TEMPLATES:
-            pool.append(template.format(skill=random.choice(usable)))
+            tech_pool.append(template.format(skill=random.choice(usable)))
 
-    return random.sample(pool, min(count, len(pool)))
+    def _fresh(pool: List[str], min_needed: int) -> List[str]:
+        """Return fresh (unseen) items; relax to full pool if too few."""
+        fresh = [q for q in pool if q not in effective_exclude]
+        return fresh if len(fresh) >= min_needed else pool
+
+    tech = _fresh(tech_pool, 2)
+    behav = _fresh(list(_BEHAVIORAL_POOL), 2)
+    situ = _fresh(list(_SITUATIONAL_POOL), 1)
+
+    # 2 technical + 2 behavioral + 1 situational
+    selected: List[str] = (
+        random.sample(tech, min(2, len(tech)))
+        + random.sample(behav, min(2, len(behav)))
+        + random.sample(situ, min(1, len(situ)))
+    )
+
+    # Fill any remaining slots from the blended pool
+    remaining = count - len(selected)
+    if remaining > 0:
+        combined = tech_pool + list(_BEHAVIORAL_POOL) + list(_SITUATIONAL_POOL)
+        selected_set = set(selected)
+        leftover = [q for q in combined if q not in selected_set and q not in effective_exclude]
+        if len(leftover) < remaining:
+            leftover = [q for q in combined if q not in selected_set]
+        if leftover:
+            selected += random.sample(leftover, min(remaining, len(leftover)))
+
+    random.shuffle(selected)
+    questions = selected[:count]
+
+    # Only update the in-memory cache on the fallback path (no DB exclude provided).
+    # When exclude comes from the DB, the endpoint owns persistence via record_questions().
+    if exclude is None:
+        _record_user_questions(user_id, questions)
+
+    return questions
 
 
 def _pick_random_questions(skills: List[str], count: int = 5) -> List[str]:
@@ -538,9 +781,11 @@ class LLMService:
         job_description: str,
         matched_skills: List[str],
         missing_skills: List[str],
+        user_id: int = 0,
+        exclude: Optional[Set[str]] = None,
     ) -> JobMatchFeedback:
         if not self.is_available:
-            return self._template_job_match(job_title, matched_skills, missing_skills)
+            return self._template_job_match(job_title, matched_skills, missing_skills, user_id, exclude)
 
         prompt = _JOB_MATCH_PROMPT.format(
             resume_text=raw_text[:2000],
@@ -549,15 +794,27 @@ class LLMService:
             matched=", ".join(matched_skills[:10]) if matched_skills else "none",
             missing=", ".join(missing_skills[:10]) if missing_skills else "none",
         )
+        recent_qs: Set[str] = exclude if exclude is not None else _get_user_recent(user_id)
+        if recent_qs:
+            recent_block = "\n".join(f"- {q}" for q in list(recent_qs)[:15])
+            prompt += (
+                "\n\nRECENTLY GENERATED QUESTIONS — do NOT repeat any of these:\n"
+                + recent_block
+                + "\nGenerate completely different questions for interview_questions."
+            )
 
         data = await self._call_llm(prompt)
         if not data:
-            return self._template_job_match(job_title, matched_skills, missing_skills)
+            return self._template_job_match(job_title, matched_skills, missing_skills, user_id, exclude)
+
+        questions = list(data.get("interview_questions", []))
+        if exclude is None:
+            _record_user_questions(user_id, questions)
 
         return JobMatchFeedback(
             match_analysis=str(data.get("match_analysis", "")),
             missing_skills=list(data.get("missing_skills", missing_skills[:5])),
-            interview_questions=list(data.get("interview_questions", [])),
+            interview_questions=questions,
             ats_tips=list(data.get("ats_tips", [])),
             recommendation=str(data.get("recommendation", "")),
         )
@@ -568,6 +825,8 @@ class LLMService:
         job_title: str,
         job_description: str,
         skills: List[str] = None,
+        user_id: int = 0,
+        exclude: Optional[Set[str]] = None,
     ) -> Dict[str, Any]:
         """Match a resume against a pasted job description without needing a saved job."""
         logger.info(
@@ -577,22 +836,37 @@ class LLMService:
 
         if not self.is_available:
             logger.info("LLMService.quick_job_match: no LLM configured — returning template")
-            return self._template_quick_match(job_title, skills or [])
+            return self._template_quick_match(job_title, skills or [], user_id, exclude)
 
         prompt = _QUICK_MATCH_PROMPT.format(
             resume_text=raw_text[:2500],
             job_title=job_title,
             job_description=job_description[:2000],
         )
+        # Prefer caller-supplied DB exclude; fall back to in-memory cache.
+        recent_qs: Set[str] = exclude if exclude is not None else _get_user_recent(user_id)
+        if recent_qs:
+            # Cap at 15 entries to keep prompt concise.
+            recent_block = "\n".join(f"- {q}" for q in list(recent_qs)[:15])
+            prompt += (
+                "\n\nRECENTLY GENERATED QUESTIONS — do NOT repeat any of these:\n"
+                + recent_block
+                + "\nGenerate completely different questions for interview_questions."
+            )
 
         logger.info("LLMService.quick_job_match: calling _call_llm (prompt_len=%d)", len(prompt))
         data = await self._call_llm(prompt)
 
         if not data:
             logger.info("LLMService.quick_job_match: LLM returned no data — using template")
-            return self._template_quick_match(job_title, skills or [])
+            return self._template_quick_match(job_title, skills or [], user_id, exclude)
 
         logger.info("LLMService.quick_job_match: LLM returned data (%d keys)", len(data))
+
+        questions = list(data.get("interview_questions", []))
+        # Only update in-memory cache on the non-DB fallback path.
+        if exclude is None:
+            _record_user_questions(user_id, questions)
 
         return {
             "match_score": float(data.get("match_score", 0)),
@@ -601,7 +875,7 @@ class LLMService:
             "missing_skills": list(data.get("missing_skills", [])),
             "strengths": list(data.get("strengths", [])),
             "growth_areas": list(data.get("growth_areas", [])),
-            "interview_questions": list(data.get("interview_questions", [])),
+            "interview_questions": questions,
             "ats_tips": list(data.get("ats_tips", [])),
             "recommendation": str(data.get("recommendation", "Moderate match - upskill first")),
         }
@@ -679,7 +953,12 @@ class LLMService:
         return response.choices[0].message.content or ""
 
     @staticmethod
-    def _template_quick_match(job_title: str, skills: List[str] = None) -> Dict[str, Any]:
+    def _template_quick_match(
+        job_title: str,
+        skills: List[str] = None,
+        user_id: int = 0,
+        exclude: Optional[Set[str]] = None,
+    ) -> Dict[str, Any]:
         return {
             "match_score": 55.0,
             "match_analysis": f"Your resume shows relevant experience for a {job_title} role. Upload a more detailed resume and use the AI provider for a precise match score.",
@@ -687,7 +966,9 @@ class LLMService:
             "missing_skills": ["domain-specific certifications", "portfolio projects"],
             "strengths": ["Demonstrated experience", "Technical background", "Educational credentials"],
             "growth_areas": ["Add quantified achievements", "Include role-specific keywords"],
-            "interview_questions": _pick_job_match_questions(job_title, skills or []),
+            "interview_questions": _pick_job_match_questions(
+                job_title, skills or [], user_id=user_id, exclude=exclude
+            ),
             "ats_tips": [
                 "Mirror the job title in your resume headline",
                 "Add keywords from the job description verbatim",
@@ -982,6 +1263,8 @@ class LLMService:
         job_title: str,
         matched_skills: List[str],
         missing_skills: List[str],
+        user_id: int = 0,
+        exclude: Optional[Set[str]] = None,
     ) -> JobMatchFeedback:
         total = len(matched_skills) + len(missing_skills)
         pct = round(len(matched_skills) / max(total, 1) * 100)
@@ -994,7 +1277,9 @@ class LLMService:
                 f"{'Addressing the skill gaps below will significantly strengthen your candidacy.' if missing_skills else 'This is an excellent match — apply with confidence.'}"
             ),
             missing_skills=missing_skills[:5],
-            interview_questions=_pick_job_match_questions(job_title, matched_skills),
+            interview_questions=_pick_job_match_questions(
+                job_title, matched_skills, user_id=user_id, exclude=exclude
+            ),
             ats_tips=[
                 f"Add the exact phrase '{job_title}' to your resume headline or summary section",
                 "Mirror specific keywords from the job description verbatim — ATS does exact matching",

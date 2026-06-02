@@ -10,7 +10,7 @@ from alembic import context
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.db.database import Base
-from app.models import user, resume, job  # noqa: F401 — registers ORM metadata
+from app.models import user, resume, job, question_history  # noqa: F401 — registers ORM metadata
 
 config = context.config
 

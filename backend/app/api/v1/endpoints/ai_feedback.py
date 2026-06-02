@@ -21,6 +21,7 @@ from app.schemas.ai_feedback import (
 )
 from app.core.security import get_current_active_user
 from app.services.ai.llm_service import LLMService, get_llm_service
+from app.services import question_history as qh
 
 router = APIRouter()
 
@@ -117,6 +118,7 @@ async def generate_job_match_feedback(
     )
 
     svc = get_llm_service()
+    exclude = qh.get_recent_set(db, current_user.id)
     try:
         feedback = await svc.generate_job_match_feedback(
             raw_text=resume.raw_text or "",
@@ -124,6 +126,8 @@ async def generate_job_match_feedback(
             job_description=job.description,
             matched_skills=ats.matched_skills if ats else [],
             missing_skills=ats.missing_skills if ats else [],
+            user_id=current_user.id,
+            exclude=exclude,
         )
         provider = svc.provider if svc.is_available else "template"
     except Exception:
@@ -132,9 +136,12 @@ async def generate_job_match_feedback(
             job.title,
             ats.matched_skills if ats else [],
             ats.missing_skills if ats else [],
+            user_id=current_user.id,
+            exclude=exclude,
         )
         provider = "template"
 
+    qh.record_questions(db, current_user.id, feedback.interview_questions)
     return JobMatchFeedbackResponse(provider=provider, **feedback.dict())
 
 
@@ -178,12 +185,15 @@ async def quick_job_match(
             svc.provider, svc.is_available,
         )
 
+        exclude = qh.get_recent_set(db, current_user.id)
         try:
             result = await svc.quick_job_match(
                 raw_text=resume.raw_text or "",
                 job_title=body.job_title,
                 job_description=body.job_description,
                 skills=resume.extracted_skills or [],
+                user_id=current_user.id,
+                exclude=exclude,
             )
             provider = svc.provider if svc.is_available else "template"
             logger.info(
@@ -194,9 +204,12 @@ async def quick_job_match(
             logger.exception(
                 "quick-match: svc.quick_job_match raised — falling back to template"
             )
-            result = LLMService._template_quick_match(body.job_title)
+            result = LLMService._template_quick_match(
+                body.job_title, user_id=current_user.id, exclude=exclude
+            )
             provider = "template"
 
+        qh.record_questions(db, current_user.id, result.get("interview_questions", []))
         response_obj = QuickMatchResponse(provider=provider, **result)
         logger.info(
             "quick-match: response built OK — score=%.1f provider=%r",
