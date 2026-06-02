@@ -69,6 +69,7 @@ export default function JobMatch() {
   const [jobDescription, setJobDescription] = useState("");
   const [tab, setTab]             = useState<Tab>("overview");
   const [result, setResult]       = useState<QuickMatchResult | null>(null);
+  const [matchVersion, setMatchVersion] = useState(0);
 
   const { data: resumes = [], isLoading: resumesLoading } = useQuery<Resume[]>({
     queryKey: ["resumes"],
@@ -87,6 +88,7 @@ export default function JobMatch() {
     onSuccess: (data) => {
       setResult(data);
       setTab("overview");
+      setMatchVersion((v) => v + 1);
       toast.success("Match analysis complete!");
     },
     onError: (err: unknown) => {
@@ -274,7 +276,7 @@ export default function JobMatch() {
 
               {!isPending && result && (
                 <motion.div
-                  key="result"
+                  key={matchVersion}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}

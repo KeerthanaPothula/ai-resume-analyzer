@@ -183,6 +183,7 @@ async def quick_job_match(
                 raw_text=resume.raw_text or "",
                 job_title=body.job_title,
                 job_description=body.job_description,
+                skills=resume.extracted_skills or [],
             )
             provider = svc.provider if svc.is_available else "template"
             logger.info(

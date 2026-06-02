@@ -128,6 +128,223 @@ _SKILL_QUESTION_TEMPLATES: List[str] = [
 ]
 
 
+# ── Job-match role-specific question banks ────────────────────────────────────
+# _pick_job_match_questions() blends the relevant pool with _INTERVIEW_QUESTION_POOL
+# so every Analyze Match click returns a fresh, role-tailored set of 5 questions.
+
+_JM_AI_ML_POOL: List[str] = [
+    "Walk me through how you design and train a machine learning model end-to-end.",
+    "Explain the bias-variance tradeoff and how you manage it in practice.",
+    "How do you detect and handle data drift in a deployed model?",
+    "Describe your approach to feature engineering for high-cardinality categorical variables.",
+    "Walk me through debugging a model that performs well offline but poorly in production.",
+    "How do you evaluate model performance beyond accuracy — precision, recall, F1, AUC?",
+    "Describe how you have implemented a real-time inference pipeline.",
+    "How do you handle imbalanced datasets in classification tasks?",
+    "Explain transformer architecture and its key innovations over RNNs.",
+    "How do you approach hyperparameter tuning at scale?",
+    "Describe a time you reduced model inference latency for a production system.",
+    "How do you ensure reproducibility in machine learning experiments?",
+    "Walk me through your approach to model explainability and interpretability.",
+    "Describe how you would build an A/B testing framework for model comparison.",
+    "How do you handle missing data — what imputation strategies do you use and when?",
+    "Explain the difference between L1 and L2 regularization and when to apply each.",
+    "How would you design a recommendation system from scratch?",
+    "Describe your MLOps experience — model versioning, CI/CD for models, monitoring.",
+    "How do you deal with concept drift in an online learning setting?",
+    "Walk me through deploying a model to production — the full pipeline.",
+    "How do you approach cross-validation for time-series data?",
+    "Explain how gradient boosting works and when you would choose it over a neural network.",
+    "How do you monitor a deployed model for degradation and trigger retraining?",
+    "Describe your experience with distributed training frameworks.",
+    "Walk me through a project where you applied NLP — preprocessing, model choice, evaluation.",
+    "How do you approach data labeling strategy — active learning, crowdsourcing, self-supervised?",
+    "Describe how you have used embeddings in a production system.",
+    "How do you debug a neural network that is not converging?",
+    "Describe a situation where a simpler model outperformed a complex one — why?",
+    "Explain batch normalization and when layer normalization is preferred.",
+    "How do you build a data pipeline that handles terabytes of training data?",
+    "How would you design a fraud detection system with highly imbalanced labels?",
+    "What techniques do you use to prevent overfitting in deep learning models?",
+    "How do you evaluate a generative model (LLM, GAN, VAE)?",
+    "Describe how you have used transfer learning to overcome limited labeled data.",
+    "What is your approach to prompt engineering for LLM-based applications?",
+    "Describe how you set up a model serving infrastructure for high-traffic predictions.",
+    "How do you handle multi-modal data (text + images + structured features)?",
+    "Walk me through how you would implement a semantic search system.",
+    "How do you prioritize which model improvements to invest in?",
+    "Describe your experience building feature stores for ML training pipelines.",
+    "How do you reason about causality vs. correlation in your model features?",
+    "What metrics do you track for a live recommendation system beyond CTR?",
+    "How do you approach model compression for deployment on edge or mobile devices?",
+    "Describe how you collaborate with data engineers to get clean, reliable training data.",
+    "How do you validate that your model is fair and unbiased across demographic groups?",
+    "Walk me through how you would migrate a batch ML system to real-time inference.",
+    "How do you manage multiple model versions simultaneously in production?",
+    "Describe your approach to shadow deployment and canary releases for ML models.",
+    "What is your strategy for the cold-start problem in a new personalization feature?",
+]
+
+_JM_DATA_POOL: List[str] = [
+    "Walk me through your typical exploratory data analysis workflow for a new dataset.",
+    "How do you communicate statistical findings to non-technical stakeholders?",
+    "Describe how you design and analyze an A/B test end-to-end.",
+    "Walk me through a time you discovered an insight from data that changed a product decision.",
+    "How do you handle missing data, outliers, and data quality issues in large datasets?",
+    "Explain the difference between correlation and causality with a real example.",
+    "How do you choose between different statistical tests (t-test, chi-square, ANOVA)?",
+    "Describe your experience building and maintaining data pipelines in production.",
+    "Explain how you would detect and mitigate sampling bias in an experiment.",
+    "Describe a project where your analysis directly drove a significant business decision.",
+    "How do you validate the assumptions of a linear regression model?",
+    "Walk me through how you build a forecasting model for a time-series problem.",
+    "How do you ensure statistical significance when running multiple tests simultaneously?",
+    "Describe your experience with SQL — what is the most complex query you have written?",
+    "How do you structure an analysis to avoid confirmation bias?",
+    "Walk me through how you would segment customers for targeted marketing.",
+    "How do you quantify uncertainty in predictions and communicate it clearly?",
+    "Describe how you have used Python (pandas, numpy, scipy) for large-scale analysis.",
+    "Walk me through how you built a dashboard or visualization that drove real action.",
+    "How do you evaluate the ROI of a data science initiative?",
+    "How do you approach data storytelling — turning numbers into a compelling narrative?",
+    "Walk me through your experience with data warehouses (Snowflake, BigQuery, Redshift).",
+    "How do you detect seasonality and trend in time-series data?",
+    "How do you balance speed of analysis vs. rigor when under deadline pressure?",
+    "Walk me through how you would build a churn prediction model for a SaaS product.",
+    "How do you approach root cause analysis using data when something breaks in production?",
+    "Describe how you handle personal data and privacy requirements in your analyses.",
+    "How do you collaborate with engineering to productionize a model or analysis?",
+    "How do you reason about statistical power when designing an experiment?",
+    "Describe your experience with Bayesian methods vs. frequentist approaches.",
+    "Walk me through your approach to cohort analysis for a subscription business.",
+    "How do you handle a stakeholder who wants a result you believe is statistically invalid?",
+    "Walk me through how you built a data product that was self-serve for non-analysts.",
+    "How do you quantify the impact of a feature launch using observational data?",
+    "Describe your experience with real-time data processing (Kafka, Spark Streaming).",
+    "Walk me through how you tackled a survival analysis or time-to-event problem.",
+    "How do you approach natural language analysis (sentiment, topic modeling) at scale?",
+    "Describe how you evaluated and mitigated bias in a predictive model.",
+    "How do you prioritize data science projects by business impact?",
+    "Walk me through how you use version control for notebooks and data pipelines.",
+    "Describe a time the data contradicted a strongly held business assumption — what happened?",
+    "How do you design a metric that captures the business outcome you actually care about?",
+    "Walk me through how you approach dimensionality reduction for visualization or modeling.",
+    "How do you handle multi-armed bandit experiments vs. traditional A/B tests?",
+    "Describe your experience with graph analytics or network analysis on real data.",
+    "How do you approach anomaly detection in a large, noisy time-series?",
+    "Walk me through building an attribution model for marketing spend.",
+    "How do you decide when 'good enough' analysis is sufficient vs. needing more rigor?",
+    "Describe a time you had to redesign an experiment because of a flaw in the original design.",
+    "How do you keep stakeholders aligned during a long multi-month analysis project?",
+]
+
+_JM_BACKEND_POOL: List[str] = [
+    "Design a URL shortener — walk me through the data model, API, and scaling strategy.",
+    "How do you design a RESTful API that is intuitive, versioned, and backward compatible?",
+    "Walk me through optimizing a slow SQL query hitting a 100M-row table.",
+    "Describe how you design a microservices architecture and how services communicate.",
+    "How do you handle database transactions and prevent race conditions in concurrent systems?",
+    "Explain the CAP theorem and how it affects your architectural choices.",
+    "How do you design a caching strategy — what to cache, how to evict, how to invalidate?",
+    "Walk me through implementing authentication and authorization for a multi-tenant API.",
+    "Describe how you handle database migrations in production without downtime.",
+    "How do you approach horizontal scaling of a stateful service?",
+    "Walk me through designing a notification system for millions of users.",
+    "How do you ensure API backward compatibility when evolving a public interface?",
+    "Describe your approach to database connection pooling and managing limits.",
+    "How do you design a rate-limiting system to protect an API under heavy load?",
+    "Walk me through debugging a memory leak in a long-running backend service.",
+    "How do you approach event-driven architecture and message queue design?",
+    "Describe how you have implemented idempotency in a payment or order processing system.",
+    "How do you monitor backend services — what metrics, thresholds, and alerts do you set?",
+    "Walk me through implementing full-text search in a large database.",
+    "How do you handle secrets management and environment configuration securely?",
+    "Describe your approach to writing integration tests for a database-backed service.",
+    "How do you implement distributed tracing across multiple microservices?",
+    "Walk me through a case where you significantly reduced backend latency.",
+    "How do you design a job queue and worker system for background processing?",
+    "Describe how you handle partial failures in a distributed system gracefully.",
+    "How do you approach data serialization — JSON, Protobuf, Avro, MessagePack — and why?",
+    "Walk me through building a WebSocket server for real-time features.",
+    "How do you implement retry logic with exponential back-off and jitter?",
+    "Describe your experience with container orchestration (Kubernetes, ECS, Nomad).",
+    "How do you ensure database performance under high write volume?",
+    "Walk me through designing a multi-region or geo-distributed system.",
+    "How do you approach API versioning — URL path, header, query param — and why?",
+    "Describe how you implemented soft deletes, auditing, or data archival in a system.",
+    "How do you handle long-running requests without blocking your server thread pool?",
+    "Walk me through building a reliable webhook delivery system.",
+    "How do you write API documentation that developers actually find useful?",
+    "Describe debugging intermittent 5xx errors in a production API.",
+    "How do you reason about index design for a complex query workload?",
+    "Walk me through designing an access control system (RBAC or ABAC).",
+    "How do you ensure your backend is resilient to third-party API failures?",
+    "Describe how you handle schema evolution in an event-driven system.",
+    "How do you approach load testing and capacity planning for a new service?",
+    "Walk me through implementing a feature flag system from scratch.",
+    "How do you handle large file uploads efficiently in a backend service?",
+    "Describe a time you optimized a backend system under significant production load.",
+    "How do you approach service discovery and load balancing in a microservices cluster?",
+    "Walk me through implementing a distributed lock across multiple service instances.",
+    "How do you approach logging strategy — what to log, at what level, and why?",
+    "Describe how you manage API contracts between services owned by different teams.",
+    "Walk me through building an audit log that is tamper-evident and queryable.",
+]
+
+_JOB_ROLE_KEYWORDS: Dict[str, List[str]] = {
+    "ai_ml": [
+        "machine learning", "ml engineer", "ai engineer", "deep learning",
+        "nlp", "natural language", "computer vision", "llm", "generative ai",
+        "artificial intelligence", "neural network", "mlops",
+    ],
+    "data": [
+        "data scientist", "data analyst", "analytics engineer",
+        "business intelligence", "research scientist", "data science",
+        "quantitative analyst", "quant",
+    ],
+    "backend": [
+        "backend", "back-end", "back end", "api engineer", "server-side",
+        "platform engineer", "devops", "site reliability", "sre",
+        "cloud engineer", "infrastructure engineer", "full stack", "fullstack",
+        "software engineer", "software developer",
+    ],
+}
+
+
+def _pick_job_match_questions(
+    job_title: str,
+    skills: List[str],
+    count: int = 5,
+) -> List[str]:
+    """
+    Sample `count` role-tailored interview questions.
+    Detects role category from the job title, blends the category pool with
+    the general behavioral pool and skill-specific templates, then samples
+    without replacement so every Analyze Match click returns a fresh set.
+    """
+    title_lower = (job_title or "").lower()
+
+    role_pool: List[str] = []
+    for category, keywords in _JOB_ROLE_KEYWORDS.items():
+        if any(kw in title_lower for kw in keywords):
+            if category == "ai_ml":
+                role_pool = list(_JM_AI_ML_POOL)
+            elif category == "data":
+                role_pool = list(_JM_DATA_POOL)
+            elif category == "backend":
+                role_pool = list(_JM_BACKEND_POOL)
+            break
+
+    pool: List[str] = role_pool + list(_INTERVIEW_QUESTION_POOL)
+
+    usable = [s for s in (skills or [])[:10] if s and len(s) < 40]
+    if usable:
+        for template in _SKILL_QUESTION_TEMPLATES:
+            pool.append(template.format(skill=random.choice(usable)))
+
+    return random.sample(pool, min(count, len(pool)))
+
+
 def _pick_random_questions(skills: List[str], count: int = 5) -> List[str]:
     """
     Sample `count` unique interview questions from the base pool, augmented with
@@ -195,6 +412,9 @@ Return ONLY a JSON object with exactly these keys:
 For recommendation pick exactly one of:
   "Strong match - apply now" | "Good match - minor gaps" |
   "Moderate match - upskill first" | "Weak match - significant preparation needed"
+
+For interview_questions: generate 5 UNIQUE and VARIED questions for THIS specific {job_title} role.
+Mix technical, behavioral, and situational questions. Do NOT repeat the same questions across calls.
 """
 
 _PING_PROMPT = '{"test": true}'
@@ -224,6 +444,10 @@ Return ONLY a JSON object with exactly these keys:
 For recommendation pick exactly one of:
   "Strong match - apply now" | "Good match - minor gaps" |
   "Moderate match - upskill first" | "Weak match - significant preparation needed"
+
+For interview_questions: generate 5 UNIQUE and VARIED questions tailored specifically to THIS {job_title} role.
+Mix: 2 technical questions about the role's specific stack, 2 behavioral questions, 1 role-specific situational question.
+Do NOT use generic filler questions. Questions must differ meaningfully across repeated calls for the same role.
 """
 
 _CHAT_PROMPT = """You are an expert AI career coach specializing in resume optimization, ATS systems, job searching, and interview preparation. You give concise, actionable, and encouraging advice.
@@ -343,6 +567,7 @@ class LLMService:
         raw_text: str,
         job_title: str,
         job_description: str,
+        skills: List[str] = None,
     ) -> Dict[str, Any]:
         """Match a resume against a pasted job description without needing a saved job."""
         logger.info(
@@ -352,7 +577,7 @@ class LLMService:
 
         if not self.is_available:
             logger.info("LLMService.quick_job_match: no LLM configured — returning template")
-            return self._template_quick_match(job_title)
+            return self._template_quick_match(job_title, skills or [])
 
         prompt = _QUICK_MATCH_PROMPT.format(
             resume_text=raw_text[:2500],
@@ -365,7 +590,7 @@ class LLMService:
 
         if not data:
             logger.info("LLMService.quick_job_match: LLM returned no data — using template")
-            return self._template_quick_match(job_title)
+            return self._template_quick_match(job_title, skills or [])
 
         logger.info("LLMService.quick_job_match: LLM returned data (%d keys)", len(data))
 
@@ -454,7 +679,7 @@ class LLMService:
         return response.choices[0].message.content or ""
 
     @staticmethod
-    def _template_quick_match(job_title: str) -> Dict[str, Any]:
+    def _template_quick_match(job_title: str, skills: List[str] = None) -> Dict[str, Any]:
         return {
             "match_score": 55.0,
             "match_analysis": f"Your resume shows relevant experience for a {job_title} role. Upload a more detailed resume and use the AI provider for a precise match score.",
@@ -462,13 +687,7 @@ class LLMService:
             "missing_skills": ["domain-specific certifications", "portfolio projects"],
             "strengths": ["Demonstrated experience", "Technical background", "Educational credentials"],
             "growth_areas": ["Add quantified achievements", "Include role-specific keywords"],
-            "interview_questions": [
-                "Tell me about your most relevant project for this role.",
-                "How have you handled tight deadlines?",
-                "Describe your experience working in a team.",
-                "What motivates you to apply for this position?",
-                "Where do you see yourself in 3 years?",
-            ],
+            "interview_questions": _pick_job_match_questions(job_title, skills or []),
             "ats_tips": [
                 "Mirror the job title in your resume headline",
                 "Add keywords from the job description verbatim",
@@ -775,13 +994,7 @@ class LLMService:
                 f"{'Addressing the skill gaps below will significantly strengthen your candidacy.' if missing_skills else 'This is an excellent match — apply with confidence.'}"
             ),
             missing_skills=missing_skills[:5],
-            interview_questions=[
-                f"Describe your most impactful project involving {matched_skills[0] if matched_skills else 'your primary technology'}.",
-                f"How have you collaborated cross-functionally in a {job_title} role?",
-                "Walk me through how you approach debugging a production issue under time pressure.",
-                "How do you stay current with evolving tools and best practices in your field?",
-                "Describe a time you had to balance competing priorities — how did you decide what to tackle first?",
-            ],
+            interview_questions=_pick_job_match_questions(job_title, matched_skills),
             ats_tips=[
                 f"Add the exact phrase '{job_title}' to your resume headline or summary section",
                 "Mirror specific keywords from the job description verbatim — ATS does exact matching",
