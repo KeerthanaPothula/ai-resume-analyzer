@@ -72,19 +72,30 @@ async def lifespan(app: FastAPI):
         logger.info("Embeddings disabled (ENABLE_EMBEDDINGS=false) — ATS scoring uses keyword-overlap fallback")
 
     # ── Email transport diagnostic — always visible in Render logs ───────────
-    if settings.RESEND_API_KEY:
+    _transport = settings.active_email_transport
+    if _transport == "resend":
         _key_masked = settings.RESEND_API_KEY[:8] + "***"
         _from = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set — will use onboarding@resend.dev)"
-        logger.info("Email: Resend ✓ — api_key=%s from=%s", _key_masked, _from)
+        logger.info("Email transport: Resend -- api_key=%s  from=%s", _key_masked, _from)
         if not (settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL):
             logger.warning(
-                "Email ⚠ RESEND_FROM_EMAIL not set — using onboarding@resend.dev which only "
-                "works in Resend sandbox mode. Set RESEND_FROM_EMAIL to your verified domain address."
+                "Email WARNING: RESEND_FROM_EMAIL not set -- using onboarding@resend.dev which only "
+                "works in Resend sandbox mode (delivers to account owner only). "
+                "Set RESEND_FROM_EMAIL to a verified domain address for unrestricted delivery."
             )
+    elif _transport == "smtp":
+        _smtp_from = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)"
+        logger.info(
+            "Email transport: SMTP -- host=%s:%s  user=%s  from=%s  tls=%s",
+            settings.SMTP_HOST, settings.SMTP_PORT,
+            settings.SMTP_USER, _smtp_from, settings.SMTP_TLS,
+        )
     else:
         logger.warning(
-            "Email: RESEND_API_KEY not set — verify/reset URLs will be logged to console only. "
-            "Set RESEND_API_KEY in the Render dashboard to enable email delivery."
+            "Email transport: NONE -- no RESEND_API_KEY and no SMTP credentials set. "
+            "Verify/reset URLs will be logged to console only. "
+            "To enable email: set RESEND_API_KEY (+ RESEND_FROM_EMAIL) OR "
+            "set SMTP_HOST + SMTP_USER + SMTP_PASSWORD in the Render dashboard."
         )
 
     # ── CORS diagnostic — always visible in Render logs ──────────────────────
@@ -261,15 +272,19 @@ def root():
 
 @app.get("/health")
 def health():
-    _resend_configured = bool(settings.RESEND_API_KEY)
+    _transport = settings.active_email_transport
+    if _transport == "resend":
+        _from = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "onboarding@resend.dev"
+    elif _transport == "smtp":
+        _from = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)"
+    else:
+        _from = None
     return {
         "status": "healthy",
         "email": {
-            "transport": "resend" if _resend_configured else "none",
-            "configured": _resend_configured,
-            "from_address": (
-                settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "onboarding@resend.dev"
-            ),
+            "transport": _transport,
+            "configured": _transport != "none",
+            "from_address": _from,
         },
     }
 

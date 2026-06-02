@@ -100,29 +100,42 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
 
     logger.info("New user registered: %s (role=%s)", user.email, user.role.value)
+    # Always log the URL — recoverable from Render logs even when email is enabled
+    logger.info(
+        "[VERIFY-URL] email=%s  expires_hours=%d  url=%s",
+        user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+    )
+
+    email_delivery_failed = False
     if settings.email_enabled:
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)
-            logger.info("Verification email sent to %s", user.email)
+            logger.info("Verification email dispatched OK — to=%s", user.email)
         except Exception as exc:
-            logger.error("Failed to send verification email to %s: %s", user.email, exc)
-            logger.warning(
-                "[EMAIL FAILED] Manual verify URL for %s (valid %dh): %s",
-                user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+            email_delivery_failed = True
+            logger.error(
+                "[EMAIL-FAIL] register — to=%s  error=%s: %s",
+                user.email, type(exc).__name__, exc,
             )
     else:
         logger.info(
-            "[DEV] Verify URL for %s (valid %dh): %s",
-            user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+            "[DEV] RESEND_API_KEY not set — skipping email delivery for %s",
+            user.email,
         )
 
     response: dict = {
         "message": "Account created! Please check your email to verify your account before signing in.",
         "email": user.email,
     }
-    if not settings.email_enabled:
+    if not settings.email_enabled or email_delivery_failed:
+        # Include URL so user can verify even when email is not configured or delivery failed
         response["dev_verify_url"] = verify_url
+    if email_delivery_failed:
+        response["message"] = (
+            "Account created! Email delivery failed — use the verify_url in this response "
+            "to activate your account."
+        )
     return response
 
 
@@ -251,22 +264,27 @@ async def forgot_password(
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
 
     logger.info("Password reset requested for: %s", user.email)
+    # Always log the URL — recoverable from Render logs even when email is enabled
+    logger.info(
+        "[RESET-URL] email=%s  expires_minutes=%d  url=%s",
+        user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url,
+    )
+
     if settings.email_enabled:
         try:
             from app.services.email import send_reset_email
             await send_reset_email(user.email, reset_url, settings.RESET_TOKEN_EXPIRE_MINUTES)
-            logger.info("Password reset email sent to %s", user.email)
+            logger.info("Password reset email dispatched OK — to=%s", user.email)
         except Exception as exc:
-            logger.error("Failed to send reset email to %s: %s", user.email, exc)
-            logger.warning(
-                "[EMAIL FAILED] Manual reset URL for %s (valid %dmin): %s",
-                user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url,
+            logger.error(
+                "[EMAIL-FAIL] forgot-password — to=%s  error=%s: %s  url=%s",
+                user.email, type(exc).__name__, exc, reset_url,
             )
         return generic_response
     else:
         logger.info(
-            "[DEV] Reset URL for %s (valid %dmin): %s",
-            user.email, settings.RESET_TOKEN_EXPIRE_MINUTES, reset_url,
+            "[DEV] RESEND_API_KEY not set — skipping email delivery for %s",
+            user.email,
         )
         return {**generic_response, "dev_reset_url": reset_url}
 
@@ -391,17 +409,26 @@ async def resend_verification(
     raw_token = _create_verification_token(user, db)
     verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
 
+    # Always log the URL — recoverable from Render logs even when email is enabled
+    logger.info(
+        "[VERIFY-URL] email=%s  expires_hours=%d  url=%s",
+        user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+    )
+
     if settings.email_enabled:
         try:
             from app.services.email import send_verification_email
             await send_verification_email(user.email, user.full_name, verify_url)
-            logger.info("Resent verification email to %s", user.email)
+            logger.info("Verification email re-dispatched OK — to=%s", user.email)
         except Exception as exc:
-            logger.error("Failed to resend verification email to %s: %s", user.email, exc)
+            logger.error(
+                "[EMAIL-FAIL] resend-verification — to=%s  error=%s: %s  url=%s",
+                user.email, type(exc).__name__, exc, verify_url,
+            )
         return generic_response
     else:
         logger.info(
-            "[DEV] Resend verify URL for %s (valid %dh): %s",
-            user.email, settings.VERIFICATION_TOKEN_EXPIRE_HOURS, verify_url,
+            "[DEV] RESEND_API_KEY not set — skipping email delivery for %s",
+            user.email,
         )
         return {**generic_response, "dev_verify_url": verify_url}

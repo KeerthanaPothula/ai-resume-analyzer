@@ -1,7 +1,12 @@
 """
-Email service — Resend HTTP API transport (https://resend.com).
-Set RESEND_API_KEY in the Render dashboard to enable delivery.
-When not set, verify/reset URLs are printed to the console only (dev mode).
+Email service — supports two transports:
+  1. Resend HTTP API (https://resend.com) — requires a verified sending domain.
+     Set RESEND_API_KEY (+ optionally RESEND_FROM_EMAIL) in the Render dashboard.
+  2. SMTP — works with Gmail App Passwords and any standard SMTP provider.
+     Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD (+ optionally SMTP_PORT, SMTP_TLS).
+
+Transport priority: Resend wins if RESEND_API_KEY is set; SMTP is the fallback.
+When neither is configured, verify/reset URLs are logged to the console only (dev mode).
 """
 
 import asyncio
@@ -280,9 +285,29 @@ def _dispatch_resend(to_email: str, subject: str, html: str, text: str) -> None:
     """Send email via the Resend HTTP API. Run in a thread via asyncio.to_thread."""
     import resend as _resend
 
+    if not settings.RESEND_API_KEY:
+        raise ValueError(
+            "RESEND_API_KEY is not set — cannot send email. "
+            "Set it in the Render dashboard under Environment Variables."
+        )
+
     _resend.api_key = settings.RESEND_API_KEY
     from_addr = _resend_from()
-    logger.info("Resend: to=%s subject=%s from=%s", to_email, subject, from_addr)
+    api_key_prefix = settings.RESEND_API_KEY[:8] + "***"
+
+    # Warn when using the Resend sandbox sender — only delivers to the account owner's email
+    from_email = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or ""
+    if not from_email or "onboarding@resend.dev" in from_addr:
+        logger.warning(
+            "Resend: using onboarding@resend.dev as sender — this only works for the Resend account "
+            "owner's email in sandbox mode. Set RESEND_FROM_EMAIL to a verified domain address "
+            "(e.g. noreply@yourdomain.com) in the Render dashboard."
+        )
+
+    logger.info(
+        "Resend dispatch — to=%s  subject=%r  from=%s  api_key=%s",
+        to_email, subject, from_addr, api_key_prefix,
+    )
     try:
         result = _resend.Emails.send({
             "from": from_addr,
@@ -292,16 +317,74 @@ def _dispatch_resend(to_email: str, subject: str, html: str, text: str) -> None:
             "text": text,
         })
         email_id = result.get("id") if isinstance(result, dict) else getattr(result, "id", "?")
-        logger.info("Resend: delivered — id=%s", email_id)
+        logger.info("Resend SUCCESS — id=%s  to=%s", email_id, to_email)
     except Exception as exc:
-        logger.error("Resend error (%s): %s\n%s", type(exc).__name__, exc, traceback.format_exc())
+        logger.error(
+            "Resend FAILED — to=%s  from=%s  api_key=%s  error=%s: %s\n%s",
+            to_email, from_addr, api_key_prefix, type(exc).__name__, exc,
+            traceback.format_exc(),
+        )
+        raise
+
+
+# ── SMTP transport ─────────────────────────────────────────────────────────────
+
+def _dispatch_smtp(to_email: str, subject: str, html: str, text: str) -> None:
+    """Send email via SMTP (Gmail, Outlook, etc.). Run in a thread via asyncio.to_thread."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    from_email = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or ""
+    from_name = settings.EMAILS_FROM_NAME or "RecruitAI"
+    from_addr = f"{from_name} <{from_email}>"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_email
+    msg.attach(MIMEText(text, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    logger.info(
+        "SMTP dispatch -- to=%s  subject=%r  from=%s  host=%s:%s",
+        to_email, subject, from_addr, settings.SMTP_HOST, settings.SMTP_PORT,
+    )
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.ehlo()
+            if settings.SMTP_TLS:
+                server.starttls()
+                server.ehlo()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.send_message(msg)
+        logger.info("SMTP SUCCESS -- to=%s", to_email)
+    except Exception as exc:
+        logger.error(
+            "SMTP FAILED -- to=%s  host=%s:%s  user=%s  error=%s: %s\n%s",
+            to_email, settings.SMTP_HOST, settings.SMTP_PORT, settings.SMTP_USER,
+            type(exc).__name__, exc, traceback.format_exc(),
+        )
         raise
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+def _get_dispatch():
+    """Return the correct sync dispatch function for the configured transport."""
+    if settings.RESEND_API_KEY:
+        return _dispatch_resend
+    if settings.smtp_enabled:
+        return _dispatch_smtp
+    raise RuntimeError(
+        "No email transport configured. "
+        "Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASSWORD."
+    )
+
+
 async def send_reset_email(to_email: str, reset_url: str, expire_minutes: int) -> None:
-    """Send a password-reset email via Resend."""
+    """Send a password-reset email via the configured transport."""
+    subject = "Reset your RecruitAI password"
     html = (
         _RESET_EMAIL_HTML
         .replace("{{to_email}}", to_email)
@@ -314,11 +397,12 @@ async def send_reset_email(to_email: str, reset_url: str, expire_minutes: int) -
         f"Open this link to choose a new password (expires in {expire_minutes} minutes):\n"
         f"{reset_url}\n\nIf you didn't request this, ignore this email.\n"
     )
-    await asyncio.to_thread(_dispatch_resend, to_email, "Reset your RecruitAI password", html, text)
+    await asyncio.to_thread(_get_dispatch(), to_email, subject, html, text)
 
 
 async def send_verification_email(to_email: str, full_name: str, verify_url: str) -> None:
-    """Send an email verification link via Resend."""
+    """Send an email verification link via the configured transport."""
+    subject = "Verify your RecruitAI email address"
     html = (
         _VERIFY_EMAIL_HTML
         .replace("{{to_email}}", to_email)
@@ -331,4 +415,4 @@ async def send_verification_email(to_email: str, full_name: str, verify_url: str
         f"Click the link below to verify your email address (expires in 24 hours):\n"
         f"{verify_url}\n\nIf you didn't create a RecruitAI account, you can safely ignore this email.\n"
     )
-    await asyncio.to_thread(_dispatch_resend, to_email, "Verify your RecruitAI email address", html, text)
+    await asyncio.to_thread(_get_dispatch(), to_email, subject, html, text)

@@ -57,20 +57,44 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
 
-    # Resend email transport (https://resend.com — HTTPS, works on Render free tier)
-    # Sign up at https://resend.com, get an API key, verify a sending domain.
+    # ── Resend email transport (https://resend.com) ───────────────────────────
+    # Requires a verified sending domain. Leave unset to fall back to SMTP below.
     RESEND_API_KEY: Optional[str] = None
-    # From address — must match a verified domain in your Resend account.
-    # Example: "noreply@yourdomain.com". Leave unset to use "onboarding@resend.dev" (sandbox only).
+    # Must match a verified domain in your Resend account (e.g. noreply@yourdomain.com).
+    # Leave unset to use SMTP transport instead (recommended when no custom domain).
     RESEND_FROM_EMAIL: Optional[str] = None
-    # Fallback From address when RESEND_FROM_EMAIL is not set
-    EMAILS_FROM_EMAIL: Optional[str] = None
+
+    # ── SMTP email transport (Gmail / Outlook / any SMTP provider) ────────────
+    # Works out of the box with Gmail App Passwords (no custom domain needed).
+    # Gmail: enable 2FA → https://myaccount.google.com/apppasswords → generate 16-char password.
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None          # Your email address
+    SMTP_PASSWORD: Optional[str] = None      # App Password (NOT your login password)
+    SMTP_TLS: bool = True                    # STARTTLS on port 587; set False only for SSL/465
+
+    # Shared display settings used by both transports
+    EMAILS_FROM_EMAIL: Optional[str] = None  # Overrides SMTP_USER / RESEND_FROM_EMAIL as display From
     EMAILS_FROM_NAME: str = "RecruitAI"
 
     @property
+    def smtp_enabled(self) -> bool:
+        """True when SMTP credentials are fully configured."""
+        return bool(self.SMTP_HOST and self.SMTP_USER and self.SMTP_PASSWORD)
+
+    @property
     def email_enabled(self) -> bool:
-        """True when Resend is configured."""
-        return bool(self.RESEND_API_KEY)
+        """True when either Resend or SMTP is configured."""
+        return bool(self.RESEND_API_KEY) or self.smtp_enabled
+
+    @property
+    def active_email_transport(self) -> str:
+        """Which transport will be used: 'resend', 'smtp', or 'none'."""
+        if self.RESEND_API_KEY:
+            return "resend"
+        if self.smtp_enabled:
+            return "smtp"
+        return "none"
 
     @model_validator(mode="after")
     def _add_frontend_url_to_origins(self) -> "Settings":

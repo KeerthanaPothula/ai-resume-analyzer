@@ -14,8 +14,9 @@ os.environ["DATABASE_URL"] = "sqlite:///./test_recruitai.db"
 os.environ["LLM_PROVIDER"] = "none"
 os.environ["ENABLE_EMBEDDINGS"] = "false"
 os.environ["UPLOAD_DIR"] = "./test_uploads"
-# Disable email so dev_verify_url / dev_reset_url appear in responses
+# Disable all email transports so dev_verify_url / dev_reset_url appear in responses
 os.environ["RESEND_API_KEY"] = ""
+os.environ["SMTP_HOST"] = ""  # overrides any SMTP_HOST in .env so tests never send real email
 
 # ── Now safe to import app modules ─────────────────────────────────────────────
 import pytest  # noqa: E402
