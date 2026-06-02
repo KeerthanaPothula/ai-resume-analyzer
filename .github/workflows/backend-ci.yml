@@ -1,0 +1,52 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  test:
+    name: Test & Lint (Python 3.12)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    # Env vars are belt-and-suspenders: conftest.py also sets them before any
+    # app import, so pydantic-settings picks up test values at instantiation.
+    env:
+      SECRET_KEY: "ci-only-secret-key-not-for-production-aabbccdd1234"
+      DATABASE_URL: "sqlite:///./ci_test.db"
+      LLM_PROVIDER: "none"
+      ENABLE_EMBEDDINGS: "false"
+      UPLOAD_DIR: "./ci_uploads"
+      RESEND_API_KEY: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            backend/requirements_local.txt
+            backend/requirements_test.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements_local.txt -r requirements_test.txt
+
+      - name: Lint (flake8)
+        run: flake8 app/ tests/
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short

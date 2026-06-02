@@ -1,5 +1,6 @@
 # RecruitAI — AI-Powered Recruitment & Applicant Tracking Platform
 
+[![Backend CI](https://github.com/KeerthanaPothula/ai-resume-analyzer/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/KeerthanaPothula/ai-resume-analyzer/actions/workflows/backend-ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)

@@ -1,0 +1,15 @@
+[flake8]
+max-line-length = 120
+extend-ignore =
+    # slice notation spacing — conflicts with black
+    E203,
+    # line-break before binary operator — conflicts with black
+    W503
+exclude =
+    venv,
+    __pycache__,
+    alembic/versions,
+    .git
+per-file-ignores =
+    # test files freely import fixtures without using them directly
+    tests/*: F401
