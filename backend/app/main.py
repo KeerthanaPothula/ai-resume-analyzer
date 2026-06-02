@@ -73,7 +73,14 @@ async def lifespan(app: FastAPI):
 
     # ── Email transport diagnostic — always visible in Render logs ───────────
     _transport = settings.active_email_transport
-    if _transport == "resend":
+    if _transport == "smtp":
+        _smtp_from = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)"
+        logger.info(
+            "Email transport: SMTP -- host=%s:%s  user=%s  from=%s  tls=%s",
+            settings.SMTP_HOST, settings.SMTP_PORT,
+            settings.SMTP_USER, _smtp_from, settings.SMTP_TLS,
+        )
+    elif _transport == "resend":
         _key_masked = settings.RESEND_API_KEY[:8] + "***"
         _from = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set — will use onboarding@resend.dev)"
         logger.info("Email transport: Resend -- api_key=%s  from=%s", _key_masked, _from)
@@ -83,19 +90,18 @@ async def lifespan(app: FastAPI):
                 "works in Resend sandbox mode (delivers to account owner only). "
                 "Set RESEND_FROM_EMAIL to a verified domain address for unrestricted delivery."
             )
-    elif _transport == "smtp":
-        _smtp_from = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)"
-        logger.info(
-            "Email transport: SMTP -- host=%s:%s  user=%s  from=%s  tls=%s",
-            settings.SMTP_HOST, settings.SMTP_PORT,
-            settings.SMTP_USER, _smtp_from, settings.SMTP_TLS,
-        )
     else:
         logger.warning(
-            "Email transport: NONE -- no RESEND_API_KEY and no SMTP credentials set. "
+            "Email transport: NONE -- no SMTP credentials and no RESEND_API_KEY set. "
             "Verify/reset URLs will be logged to console only. "
-            "To enable email: set RESEND_API_KEY (+ RESEND_FROM_EMAIL) OR "
-            "set SMTP_HOST + SMTP_USER + SMTP_PASSWORD in the Render dashboard."
+            "To enable email: set SMTP_HOST + SMTP_USER + SMTP_PASSWORD (recommended) OR "
+            "set RESEND_API_KEY (+ RESEND_FROM_EMAIL) in the Render dashboard."
+        )
+
+    if settings.smtp_enabled and settings.RESEND_API_KEY:
+        logger.warning(
+            "Email WARNING: both SMTP and Resend are configured -- SMTP will be used. "
+            "Remove RESEND_API_KEY from Render environment variables if you no longer need Resend."
         )
 
     # ── CORS diagnostic — always visible in Render logs ──────────────────────

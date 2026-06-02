@@ -371,14 +371,15 @@ def _dispatch_smtp(to_email: str, subject: str, html: str, text: str) -> None:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def _get_dispatch():
-    """Return the correct sync dispatch function for the configured transport."""
-    if settings.RESEND_API_KEY:
-        return _dispatch_resend
+    """Return the correct sync dispatch function for the configured transport.
+    SMTP is preferred; Resend is only used when SMTP is not configured."""
     if settings.smtp_enabled:
         return _dispatch_smtp
+    if settings.RESEND_API_KEY:
+        return _dispatch_resend
     raise RuntimeError(
         "No email transport configured. "
-        "Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASSWORD."
+        "Set SMTP_HOST/SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY."
     )
 
 

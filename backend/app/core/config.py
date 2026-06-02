@@ -89,11 +89,12 @@ class Settings(BaseSettings):
 
     @property
     def active_email_transport(self) -> str:
-        """Which transport will be used: 'resend', 'smtp', or 'none'."""
-        if self.RESEND_API_KEY:
-            return "resend"
+        """Which transport will be used: 'smtp', 'resend', or 'none'.
+        SMTP is preferred; Resend is only used when SMTP is not configured."""
         if self.smtp_enabled:
             return "smtp"
+        if self.RESEND_API_KEY:
+            return "resend"
         return "none"
 
     @model_validator(mode="after")
