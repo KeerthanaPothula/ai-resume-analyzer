@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Brain, Mail, Loader2, AlertCircle, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Brain, Mail, Loader2, AlertCircle, CheckCircle2, ArrowLeft, AlertTriangle, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
 import { authApi } from "../lib/api";
 
@@ -17,6 +17,7 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [devResetUrl, setDevResetUrl] = useState<string | null>(null);
+  const [emailDeliveryFailed, setEmailDeliveryFailed] = useState(false);
 
   const error = validate(email);
   const showError = touched && !!error;
@@ -30,9 +31,11 @@ export default function ForgotPassword() {
     try {
       const res = await authApi.forgotPassword(email);
       setSubmitted(true);
-      // Dev mode: backend returns the reset URL directly
       if (res.data?.dev_reset_url) {
         setDevResetUrl(res.data.dev_reset_url);
+      }
+      if (res.data?.email_delivery_failed) {
+        setEmailDeliveryFailed(true);
       }
     } catch (err: unknown) {
       type AxiosLike = {
@@ -98,33 +101,48 @@ export default function ForgotPassword() {
               className="text-center"
             >
               <div className="flex justify-center mb-4">
-                <div className="w-14 h-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                  <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                  emailDeliveryFailed ? "bg-amber-500/15" : "bg-emerald-500/15"
+                }`}>
+                  {emailDeliveryFailed
+                    ? <AlertTriangle className="w-7 h-7 text-amber-400" />
+                    : <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+                  }
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Check your inbox</h2>
+              <h2 className="text-xl font-bold text-white mb-2">
+                {emailDeliveryFailed ? "Email delivery unavailable" : "Check your inbox"}
+              </h2>
               <p className="text-slate-400 text-sm leading-relaxed">
-                If <span className="text-slate-300">{email}</span> is registered, a password
-                reset link has been sent. It expires in 30 minutes.
+                {emailDeliveryFailed
+                  ? "We couldn't send a reset email to your address. Use the button below to reset your password directly."
+                  : <>If <span className="text-slate-300">{email}</span> is registered, a password reset link has been sent. It expires in 30 minutes.</>
+                }
               </p>
 
-              {devResetUrl && (
-                <div className="mt-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-left">
-                  <p className="text-xs font-semibold text-amber-400 mb-2">Dev mode — reset link:</p>
-                  <a
-                    href={devResetUrl}
-                    className="text-xs text-sky-400 break-all hover:underline"
-                  >
-                    {devResetUrl}
-                  </a>
+              {devResetUrl ? (
+                <a
+                  href={devResetUrl}
+                  className="mt-5 btn-primary w-full justify-center py-2.5 flex items-center gap-2 no-underline"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Reset Password
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                </a>
+              ) : emailDeliveryFailed ? (
+                <div className="mt-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                  <p className="text-amber-300 text-sm leading-relaxed">
+                    Email delivery is down and the admin has not enabled fallback links.
+                    Please contact support to reset your password.
+                  </p>
                 </div>
-              )}
+              ) : null}
 
               <button
-                onClick={() => { setSubmitted(false); setEmail(""); setTouched(false); setDevResetUrl(null); }}
+                onClick={() => { setSubmitted(false); setEmail(""); setTouched(false); setDevResetUrl(null); setEmailDeliveryFailed(false); }}
                 className="mt-6 text-sm text-sky-400 hover:text-sky-300 transition-colors"
               >
-                Send another link
+                {emailDeliveryFailed ? "Try again" : "Send another link"}
               </button>
             </motion.div>
           ) : (

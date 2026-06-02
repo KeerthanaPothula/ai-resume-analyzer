@@ -293,6 +293,7 @@ Test infrastructure: isolated SQLite DB per session, `get_db` override for sessi
 | `FRONTEND_URL` | No | `http://localhost:5173` | Added to CORS allow-list |
 | `ENABLE_EMBEDDINGS` | No | `false` | Set `true` on instances with >1 GB RAM |
 | `RESEND_API_KEY` | No | — | Email delivery (Resend) |
+| `EMAIL_FALLBACK_ENABLED` | No | `false` | Return verify/reset URLs in API responses when email delivery fails (set `true` on Render free tier) |
 | `DEBUG` | No | `false` | Enables `/docs` and `/redoc` |
 
 ### Frontend (`frontend/.env`)
@@ -310,6 +311,8 @@ Test infrastructure: isolated SQLite DB per session, `get_db` override for sessi
 1. Push to `main` — Render auto-deploys via `render.yaml`
 2. Container runs: `alembic upgrade head && uvicorn app.main:app`
 3. Set in Render dashboard: `SECRET_KEY`, `DATABASE_URL` (auto-injected), `FRONTEND_URL`, `LLM_PROVIDER` + API key (optional), `RESEND_API_KEY` (optional)
+
+> **Demo deployment note:** The live demo runs on Render's free tier, which blocks outbound SMTP on all ports (25, 465, 587). Email delivery is unavailable in this environment. To keep the platform fully usable, set `EMAIL_FALLBACK_ENABLED=true` in the Render dashboard — the backend will then return a direct verification/reset link in the API response whenever email delivery fails, and the frontend will display a "Verify Account" / "Reset Password" button in place of the normal "check your inbox" message. All tokens are still generated, hashed, and expire normally; only the delivery channel changes.
 
 ### Frontend → Vercel
 
