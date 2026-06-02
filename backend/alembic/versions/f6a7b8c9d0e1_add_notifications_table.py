@@ -18,6 +18,7 @@ _notificationtype_enum = sa.Enum(
     'application_received', 'status_updated', 'interview_scheduled',
     'shortlisted', 'rejected', 'accepted',
     name='notificationtype',
+    create_type=False,  # type lifecycle managed explicitly via .create()/.drop() below
 )
 
 
