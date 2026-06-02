@@ -78,12 +78,14 @@ function EmptyTabState({ message }: { message: string }) {
 export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
   const [tab, setTab] = useState<ResumeTab>("summary");
   const [feedback, setFeedback] = useState<AIFeedback | null>(null);
+  const [feedbackVersion, setFeedbackVersion] = useState(0);
 
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
       aiFeedbackApi.resumeFeedback(resumeId).then((r) => r.data as AIFeedback),
     onSuccess: (data) => {
       setFeedback(data);
+      setFeedbackVersion((v) => v + 1);
       toast.success("AI feedback generated");
     },
     onError: (err: unknown) => {
@@ -165,7 +167,7 @@ export function AIResumeFeedbackPanel({ resumeId }: { resumeId: number }) {
       <AnimatePresence mode="wait">
         {feedback && !isPending && (
           <motion.div
-            key="result"
+            key={feedbackVersion}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"

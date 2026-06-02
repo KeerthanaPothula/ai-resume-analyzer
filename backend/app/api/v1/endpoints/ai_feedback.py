@@ -73,6 +73,8 @@ async def generate_resume_feedback(
             experience_years=resume.experience_years or 0.0,
             education_level=resume.education_level or "Not Specified",
             weaknesses=resume.weaknesses or [],
+            ats_score=resume.ats_score or 0.0,
+            strengths=resume.strengths or [],
         )
         provider = svc.provider if svc.is_available else "template"
     except Exception:

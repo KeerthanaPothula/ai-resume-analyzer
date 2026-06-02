@@ -16,6 +16,7 @@ Configure via backend/.env:
 import asyncio
 import json
 import logging
+import random
 import re
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
@@ -52,6 +53,95 @@ class JobMatchFeedback:
         return asdict(self)
 
 
+# ── Interview question bank (template fallback) ───────────────────────────────
+# 50 base questions + 10 skill-specific templates.
+# _pick_random_questions() samples 5 without replacement so every Regenerate
+# click returns a different set.
+
+_INTERVIEW_QUESTION_POOL: List[str] = [
+    # Behavioral — adversity & collaboration
+    "Tell me about yourself and the most impactful project you have delivered.",
+    "Describe a time you faced a significant technical challenge and how you overcame it.",
+    "Tell me about a time you had to learn a new technology quickly under a tight deadline.",
+    "Describe a situation where you disagreed with a technical decision. What did you do?",
+    "Tell me about the project you are most proud of and why.",
+    "Describe a time you had to collaborate with a difficult team member or stakeholder.",
+    "Tell me about a time you missed a deadline. What happened and what did you learn?",
+    "Describe a situation where you had to juggle multiple urgent priorities simultaneously.",
+    "Tell me about a time you identified and fixed a critical bug in a production system.",
+    "Describe a time you mentored or helped a colleague grow their technical skills.",
+    "Tell me about your biggest professional failure and the lesson you took from it.",
+    "Describe a time you had to explain a complex technical concept to a non-technical audience.",
+    "Tell me about a time you proactively improved a process or workflow on your team.",
+    "Describe a situation where you had to deliver with ambiguous or incomplete requirements.",
+    "Tell me about a time you had to influence a decision without direct authority.",
+    "Describe a moment when you had to adapt quickly to a significant change at work.",
+    "Tell me about a time when close attention to detail prevented a serious problem.",
+    "Describe how you received and acted on a piece of difficult critical feedback.",
+    "Tell me about a project where you had to balance quality against a very tight deadline.",
+    "Describe a time you took ownership of a problem that was not strictly your responsibility.",
+    # Technical — practices & systems
+    "Walk me through how you would approach debugging a production outage under time pressure.",
+    "How do you ensure code quality and long-term maintainability in your projects?",
+    "Describe your approach to designing a service that needs to scale to millions of users.",
+    "How do you manage technical debt while still meeting delivery commitments?",
+    "Explain how you would diagnose and optimize a slow database query in production.",
+    "Describe your code-review process — both as the author and the reviewer.",
+    "How do you approach testing — unit, integration, and end-to-end coverage?",
+    "Describe how you have implemented security best practices in a past project.",
+    "Walk me through your CI/CD pipeline and deployment process from your last role.",
+    "How do you monitor application performance and respond to degradation proactively?",
+    "Describe your experience with version control workflows and branching strategies.",
+    "How do you design APIs to be intuitive, versioned, and well-documented?",
+    "What is your strategy for handling errors, retries, and graceful service degradation?",
+    "How do you refactor legacy code safely without disrupting live systems?",
+    "Describe your experience with containerization and infrastructure-as-code.",
+    "How do you make architectural decisions when there are multiple valid trade-offs?",
+    "Describe your approach to data modeling when designing a new product feature.",
+    "How do you make your systems observable — logging, metrics, distributed tracing?",
+    "What is your strategy for managing third-party dependencies safely over time?",
+    "How do you evaluate whether a new framework or library is worth adopting in production?",
+    # Career & motivation
+    "What aspect of software engineering excites you most right now?",
+    "Where do you see your technical career heading over the next three to five years?",
+    "How do you balance deepening expertise versus broadening your skill set?",
+    "What kind of engineering team culture brings out your best work?",
+    "What is the most interesting technical problem you have worked on in the past year?",
+    "How do you approach continuous learning — books, courses, side projects, communities?",
+    "What does 'good engineering' mean to you beyond simply working code?",
+    "Describe your ideal working relationship with product management and design.",
+    "How do you contribute to team culture beyond your individual technical deliverables?",
+    "What does an effective, constructive code review comment look like to you?",
+]
+
+_SKILL_QUESTION_TEMPLATES: List[str] = [
+    "Describe a project where {skill} was central to your solution and the outcome it produced.",
+    "What are the main trade-offs of using {skill} compared to the alternatives you considered?",
+    "Walk me through how you optimized performance in a system that relied heavily on {skill}.",
+    "What are the most common pitfalls when working with {skill} and how do you avoid them?",
+    "How has your understanding of best practices around {skill} evolved over your career?",
+    "Describe the most complex problem you have solved using {skill}.",
+    "How would you onboard a junior developer who is completely new to {skill}?",
+    "What aspects of {skill} do you think are underutilized or often misunderstood?",
+    "Describe how you have used {skill} to improve system reliability or team productivity.",
+    "How do you keep your {skill} knowledge current as the ecosystem evolves?",
+]
+
+
+def _pick_random_questions(skills: List[str], count: int = 5) -> List[str]:
+    """
+    Sample `count` unique interview questions from the base pool, augmented with
+    skill-specific variants drawn from the candidate's detected skills.
+    Each call uses random.sample so every Regenerate click returns a fresh set.
+    """
+    pool: List[str] = list(_INTERVIEW_QUESTION_POOL)
+    usable = [s for s in (skills or [])[:10] if s and len(s) < 40]
+    if usable:
+        for template in _SKILL_QUESTION_TEMPLATES:
+            pool.append(template.format(skill=random.choice(usable)))
+    return random.sample(pool, min(count, len(pool)))
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _RESUME_PROMPT = """Analyze this resume and provide structured feedback.
@@ -62,6 +152,8 @@ Resume Text (truncated):
 Detected Skills: {skills}
 Experience: {experience} years
 Education: {education}
+ATS Score: {ats_score}/100
+Key Strengths: {strengths}
 Known Weaknesses: {weaknesses}
 
 Return ONLY a JSON object with exactly these keys:
@@ -74,7 +166,10 @@ Return ONLY a JSON object with exactly these keys:
   "interview_questions": ["Behavioral or technical question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
 }}
 
-For interview_questions: generate 5 questions a hiring manager would likely ask this specific candidate based on their experience, skills, and resume content."""
+For interview_questions: generate 5 VARIED and SPECIFIC questions this hiring manager would ask.
+Each question must be unique, tailored to this candidate's actual skills and ATS score, and must NOT be generic.
+Do not repeat questions that a simple generic template would produce.
+Vary between behavioral, technical, and role-specific questions."""
 
 _JOB_MATCH_PROMPT = """Analyze how well this resume matches the job description.
 
@@ -183,6 +278,8 @@ class LLMService:
         experience_years: float,
         education_level: str,
         weaknesses: List[str],
+        ats_score: float = 0.0,
+        strengths: Optional[List[str]] = None,
     ) -> ResumeFeedback:
         if not self.is_available:
             return self._template_resume_feedback(skills, experience_years, education_level, weaknesses)
@@ -192,6 +289,8 @@ class LLMService:
             skills=", ".join(skills[:20]) if skills else "none detected",
             experience=f"{experience_years:.1f}",
             education=education_level,
+            ats_score=f"{ats_score:.0f}",
+            strengths=", ".join((strengths or [])[:5]) if strengths else "not yet analyzed",
             weaknesses=", ".join(weaknesses[:5]) if weaknesses else "none",
         )
 
@@ -469,7 +568,7 @@ class LLMService:
 
             cfg = genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.3,
+                temperature=0.7,
                 max_output_tokens=2048,
             )
 
@@ -594,7 +693,7 @@ class LLMService:
                     {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.3,
+                temperature=0.7,
                 max_tokens=1500,
             )
             content = response.choices[0].message.content or "{}"
@@ -656,13 +755,7 @@ class LLMService:
                 exp_assessment
                 + "Apply the suggestions above to maximize ATS compatibility and recruiter impact."
             ),
-            interview_questions=[
-                "Tell me about yourself and your most impactful project.",
-                f"How have you applied {skill_str.split(',')[0].strip() if skills else 'your primary technology'} in a production environment?",
-                "Describe a challenging technical problem you solved and your approach.",
-                "How do you stay current with new tools, frameworks, and industry trends?",
-                "Tell me about a time you had to collaborate cross-functionally under a tight deadline.",
-            ],
+            interview_questions=_pick_random_questions(skills),
         )
 
     @staticmethod
