@@ -346,24 +346,34 @@ def _dispatch_smtp(to_email: str, subject: str, html: str, text: str) -> None:
     msg.attach(MIMEText(text, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
 
+    use_ssl = settings.SMTP_PORT == 465
+    mode_label = "SSL (465)" if use_ssl else "STARTTLS (587)"
     logger.info(
-        "SMTP dispatch -- to=%s  subject=%r  from=%s  host=%s:%s",
-        to_email, subject, from_addr, settings.SMTP_HOST, settings.SMTP_PORT,
+        "SMTP %s dispatch -- to=%s  subject=%r  from=%s  host=%s:%s",
+        mode_label, to_email, subject, from_addr, settings.SMTP_HOST, settings.SMTP_PORT,
     )
     try:
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.ehlo()
-            if settings.SMTP_TLS:
-                server.starttls()
+        if use_ssl:
+            # Port 465: implicit SSL — wrap the connection from the start
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
                 server.ehlo()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.send_message(msg)
-        logger.info("SMTP SUCCESS -- to=%s", to_email)
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            # Port 587 (or other): plain connection upgraded via STARTTLS
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                server.ehlo()
+                if settings.SMTP_TLS:
+                    server.starttls()
+                    server.ehlo()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+        logger.info("SMTP SUCCESS -- to=%s  mode=%s", to_email, mode_label)
     except Exception as exc:
         logger.error(
-            "SMTP FAILED -- to=%s  host=%s:%s  user=%s  error=%s: %s\n%s",
-            to_email, settings.SMTP_HOST, settings.SMTP_PORT, settings.SMTP_USER,
-            type(exc).__name__, exc, traceback.format_exc(),
+            "SMTP FAILED -- to=%s  host=%s:%s  mode=%s  user=%s  error=%s: %s\n%s",
+            to_email, settings.SMTP_HOST, settings.SMTP_PORT, mode_label,
+            settings.SMTP_USER, type(exc).__name__, exc, traceback.format_exc(),
         )
         raise
 
