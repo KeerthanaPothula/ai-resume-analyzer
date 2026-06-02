@@ -11,6 +11,9 @@ When neither is configured, verify/reset URLs are logged to the console only (de
 
 import asyncio
 import logging
+import smtplib
+import socket
+import ssl
 import traceback
 
 try:
@@ -329,9 +332,112 @@ def _dispatch_resend(to_email: str, subject: str, html: str, text: str) -> None:
 
 # ── SMTP transport ─────────────────────────────────────────────────────────────
 
+# Connection timeout for all SMTP attempts.
+# Without this, a firewall DROP rule (no ICMP reply) causes an indefinite hang.
+_SMTP_TIMEOUT = 30  # seconds
+
+# socket._GLOBAL_DEFAULT_TIMEOUT is the sentinel meaning "inherit system default".
+# We compare against it in _get_socket overrides to decide whether to call settimeout().
+_SOCK_DEFAULT_TIMEOUT = socket._GLOBAL_DEFAULT_TIMEOUT
+
+
+def _smtp_dns_log(host: str, port: int) -> tuple[list[str], list[str]]:
+    """Resolve host, log every address+family, return (ipv4_list, ipv6_list)."""
+    try:
+        infos = socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        logger.error("SMTP DNS FAILED -- host=%s  error=%s", host, exc)
+        raise
+
+    ipv4: list[str] = []
+    ipv6: list[str] = []
+    for (family, _, _, _, sockaddr) in infos:
+        if family == socket.AF_INET:
+            ipv4.append(sockaddr[0])
+        elif family == socket.AF_INET6:
+            ipv6.append(sockaddr[0])
+
+    logger.info(
+        "SMTP DNS resolved -- host=%s:%s  IPv4=%s  IPv6=%s",
+        host, port,
+        ipv4 if ipv4 else "none",
+        ipv6 if ipv6 else "none",
+    )
+    return ipv4, ipv6
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    """Plain SMTP (for STARTTLS) that connects via IPv4 only.
+
+    On Render and other cloud hosts, getaddrinfo returns IPv6 addresses first.
+    When IPv6 has no route (errno 101 ENETUNREACH), Python retries with IPv4 —
+    but some firewall setups also return ENETUNREACH for IPv4 on blocked SMTP
+    ports.  By restricting to AF_INET we at least confirm which family is used
+    and eliminate IPv6 as the variable.
+    """
+
+    def _get_socket(self, host: str, port: int, timeout):
+        try:
+            infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        except socket.gaierror:
+            infos = []
+
+        if not infos:
+            # No IPv4 result — fall back to default resolution (may try IPv6)
+            logger.warning("SMTP: no IPv4 address for %s, falling back to default resolution", host)
+            return super()._get_socket(host, port, timeout)
+
+        _, _, _, _, addr = infos[0]
+        logger.info("SMTP CONNECT IPv4 -- target=%s:%s", addr[0], addr[1])
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if timeout is not _SOCK_DEFAULT_TIMEOUT:
+            sock.settimeout(timeout)
+        try:
+            sock.connect(addr)
+        except Exception:
+            sock.close()
+            raise
+        return sock
+
+
+class _IPv4SMTPSSL(smtplib.SMTP_SSL):
+    """SMTP_SSL (port 465 implicit SSL) that connects via IPv4 only.
+
+    Overrides _get_socket to:
+    1. Resolve host to IPv4 explicitly (avoids ENETUNREACH on unrouted IPv6).
+    2. Pass the *original hostname* (not the IP) as SNI server_hostname so
+       that certificate verification against 'smtp.gmail.com' still passes.
+       Without this, wrapping with server_hostname=IP would fail cert check.
+    """
+
+    def _get_socket(self, host: str, port: int, timeout):
+        try:
+            infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        except socket.gaierror:
+            infos = []
+
+        if not infos:
+            logger.warning("SMTP SSL: no IPv4 address for %s, falling back to default resolution", host)
+            return super()._get_socket(host, port, timeout)
+
+        _, _, _, _, addr = infos[0]
+        logger.info("SMTP SSL CONNECT IPv4 -- target=%s:%s  SNI=%s", addr[0], addr[1], self._host)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if timeout is not _SOCK_DEFAULT_TIMEOUT:
+            sock.settimeout(timeout)
+        try:
+            sock.connect(addr)
+        except Exception:
+            sock.close()
+            raise
+        # self._host = original hostname passed to SMTP_SSL(host, ...) — used for SNI.
+        # If we passed the IP as server_hostname, cert verification would fail because
+        # Gmail's cert is issued for smtp.gmail.com, not the IP.
+        return self.context.wrap_socket(sock, server_hostname=self._host)
+
+
 def _dispatch_smtp(to_email: str, subject: str, html: str, text: str) -> None:
     """Send email via SMTP (Gmail, Outlook, etc.). Run in a thread via asyncio.to_thread."""
-    import smtplib
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
@@ -346,33 +452,54 @@ def _dispatch_smtp(to_email: str, subject: str, html: str, text: str) -> None:
     msg.attach(MIMEText(text, "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
 
-    use_ssl = settings.SMTP_PORT == 465
+    smtp_host = settings.SMTP_HOST
+    smtp_port = settings.SMTP_PORT
+    use_ssl = smtp_port == 465
     mode_label = "SSL (465)" if use_ssl else "STARTTLS (587)"
+
+    # ── DNS diagnostic: resolve before connecting so we know what IPs were tried ─
+    ipv4_addrs, ipv6_addrs = _smtp_dns_log(smtp_host, smtp_port)
+    connect_ip = ipv4_addrs[0] if ipv4_addrs else (ipv6_addrs[0] if ipv6_addrs else smtp_host)
+
     logger.info(
-        "SMTP %s dispatch -- to=%s  subject=%r  from=%s  host=%s:%s",
-        mode_label, to_email, subject, from_addr, settings.SMTP_HOST, settings.SMTP_PORT,
+        "SMTP %s dispatch -- to=%s  subject=%r  from=%s  host=%s:%s  "
+        "connect_ip=%s  family=%s  timeout=%ss",
+        mode_label, to_email, subject, from_addr,
+        smtp_host, smtp_port,
+        connect_ip,
+        "IPv4" if ipv4_addrs else ("IPv6" if ipv6_addrs else "unknown"),
+        _SMTP_TIMEOUT,
     )
+
+    ssl_ctx = ssl.create_default_context()
     try:
         if use_ssl:
-            # Port 465: implicit SSL — wrap the connection from the start
-            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            # Port 465: implicit SSL from connection start.
+            # _IPv4SMTPSSL resolves smtp_host to IPv4 inside _get_socket and
+            # wraps with server_hostname=smtp_host (not IP) for SNI.
+            with _IPv4SMTPSSL(smtp_host, smtp_port, context=ssl_ctx, timeout=_SMTP_TIMEOUT) as server:
                 server.ehlo()
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(msg)
         else:
-            # Port 587 (or other): plain connection upgraded via STARTTLS
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            # Port 587: plain connection upgraded via STARTTLS.
+            with _IPv4SMTP(smtp_host, smtp_port, timeout=_SMTP_TIMEOUT) as server:
                 server.ehlo()
                 if settings.SMTP_TLS:
-                    server.starttls()
+                    server.starttls(context=ssl_ctx)
                     server.ehlo()
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(msg)
-        logger.info("SMTP SUCCESS -- to=%s  mode=%s", to_email, mode_label)
+        logger.info(
+            "SMTP SUCCESS -- to=%s  mode=%s  connect_ip=%s",
+            to_email, mode_label, connect_ip,
+        )
     except Exception as exc:
         logger.error(
-            "SMTP FAILED -- to=%s  host=%s:%s  mode=%s  user=%s  error=%s: %s\n%s",
-            to_email, settings.SMTP_HOST, settings.SMTP_PORT, mode_label,
+            "SMTP FAILED -- to=%s  host=%s:%s  mode=%s  connect_ip=%s  "
+            "family=%s  user=%s  error=%s: %s\n%s",
+            to_email, smtp_host, smtp_port, mode_label, connect_ip,
+            "IPv4" if ipv4_addrs else ("IPv6" if ipv6_addrs else "unknown"),
             settings.SMTP_USER, type(exc).__name__, exc, traceback.format_exc(),
         )
         raise
