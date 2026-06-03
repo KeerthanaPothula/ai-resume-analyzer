@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -50,12 +50,18 @@ def create_job(
 
 @router.get("/", response_model=List[JobDescriptionResponse])
 def list_jobs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     if current_user.role.value == "recruiter":
-        return db.query(JobDescription).filter(JobDescription.recruiter_id == current_user.id).all()
-    return db.query(JobDescription).all()
+        return (
+            db.query(JobDescription)
+            .filter(JobDescription.recruiter_id == current_user.id)
+            .offset(skip).limit(limit).all()
+        )
+    return db.query(JobDescription).offset(skip).limit(limit).all()
 
 
 @router.get("/{job_id}", response_model=JobDescriptionResponse)

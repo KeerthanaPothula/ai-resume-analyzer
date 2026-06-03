@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -160,12 +160,14 @@ async def upload_resume(
 
 @router.get("/", response_model=List[ResumeResponse])
 def list_resumes(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     if current_user.role.value in ("admin", "recruiter"):
-        return db.query(Resume).all()
-    return db.query(Resume).filter(Resume.user_id == current_user.id).all()
+        return db.query(Resume).offset(skip).limit(limit).all()
+    return db.query(Resume).filter(Resume.user_id == current_user.id).offset(skip).limit(limit).all()
 
 
 @router.get("/{resume_id}", response_model=ResumeResponse)

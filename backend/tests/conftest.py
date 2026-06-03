@@ -72,7 +72,11 @@ def db():
 
 @pytest.fixture(scope="function")
 def client(db):
-    """TestClient that creates its own DB sessions (independent of the test db fixture)."""
+    """TestClient that creates its own DB sessions (independent of the test db fixture).
+    Rate limiting is disabled for all test requests via the slowapi _enabled flag.
+    """
+    from app.core.limiter import limiter as _limiter
+
     def _override_get_db():
         s = SessionLocal()
         try:
@@ -81,8 +85,10 @@ def client(db):
             s.close()
 
     app.dependency_overrides[get_db] = _override_get_db
+    _limiter.enabled = False
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
+    _limiter.enabled = True
     app.dependency_overrides.clear()
 
 

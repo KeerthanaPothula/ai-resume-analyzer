@@ -895,13 +895,9 @@ class LLMService:
         if not self.is_available:
             return self._template_chat_reply(message)
 
-        data = await self._call_llm(prompt)
-        if data is None:
-            return self._template_chat_reply(message)
-
-        # Chat prompt returns prose, not JSON — _call_llm would fail to parse it.
-        # So we call raw and handle separately.
-        return await self._call_llm_text(prompt)
+        # Chat returns prose, not JSON — use _call_llm_text directly.
+        reply = await self._call_llm_text(prompt)
+        return reply or self._template_chat_reply(message)
 
     async def _call_llm_text(self, prompt: str) -> str:
         """Like _call_llm but returns the raw text instead of parsed JSON."""

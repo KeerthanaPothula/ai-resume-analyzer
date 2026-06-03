@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -195,6 +195,8 @@ def rank_candidates_for_job(
 @router.get("/job/{job_id}")
 def get_rankings_for_job(
     job_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -214,6 +216,7 @@ def get_rankings_for_job(
             CandidateRanking.is_applied == True,  # noqa: E712
         )
         .order_by(CandidateRanking.rank)
+        .offset(skip).limit(limit)
         .all()
     )
     if not rankings:

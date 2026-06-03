@@ -3,7 +3,8 @@
 > Full-stack SaaS that replaces spreadsheet hiring with AI-scored resumes, semantic candidate ranking, LLM-generated feedback, and a six-stage applicant tracking pipeline.
 
 [![Backend CI](https://github.com/KeerthanaPothula/ai-resume-analyzer/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/KeerthanaPothula/ai-resume-analyzer/actions/workflows/backend-ci.yml)
-[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen)](backend/tests/)
+[![codecov](https://codecov.io/gh/KeerthanaPothula/ai-resume-analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/KeerthanaPothula/ai-resume-analyzer)
+[![Tests](https://img.shields.io/badge/tests-73%20passing-brightgreen)](backend/tests/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
