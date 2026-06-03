@@ -137,7 +137,13 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
         if settings.fallback_url_enabled:
             response["dev_verify_url"] = verify_url
     elif not settings.email_enabled:
-        # No transport at all — dev/test, always expose URL
+        # No transport configured — always signal delivery failure so the
+        # frontend shows the amber UI and the Verify Account button.
+        response["email_delivery_failed"] = True
+        response["message"] = (
+            "Account created! Email delivery is currently unavailable. "
+            "Use the verification link to activate your account."
+        )
         response["dev_verify_url"] = verify_url
     return response
 
@@ -293,7 +299,7 @@ async def forgot_password(
             "[DEV] email not configured — skipping email delivery for %s",
             user.email,
         )
-        return {**generic_response, "dev_reset_url": reset_url}
+        return {**generic_response, "email_delivery_failed": True, "dev_reset_url": reset_url}
 
 
 # ── POST /reset-password ───────────────────────────────────────────────────────
@@ -446,4 +452,4 @@ async def resend_verification(
             "[DEV] email not configured — skipping email delivery for %s",
             user.email,
         )
-        return {**generic_response, "dev_verify_url": verify_url}
+        return {**generic_response, "email_delivery_failed": True, "dev_verify_url": verify_url}

@@ -40,6 +40,11 @@ services:
       - key: DEBUG
         value: "False"
 
+      # Return verify/reset URLs in API responses when email delivery fails.
+      # Required on Render free tier where outbound SMTP is blocked.
+      - key: EMAIL_FALLBACK_ENABLED
+        value: "true"
+
       # ── Embedding model (SentenceTransformer / PyTorch) ───────────────────────
       # PyTorch consumes ~300 MB at import time, which exceeds Render free tier
       # (512 MB). Keep this "false" unless you upgrade to a paid Render plan.

@@ -35,6 +35,15 @@ def test_forgot_password_no_email_transport_returns_dev_url(client, candidate_us
     assert "/reset-password?token=" in body["dev_reset_url"]
 
 
+def test_forgot_password_fallback_sets_email_delivery_failed(client, candidate_user):
+    """No transport configured in test env — forgot-password must set email_delivery_failed=True."""
+    resp = client.post("/api/v1/auth/forgot-password", json={"email": candidate_user.email})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("email_delivery_failed") is True
+    assert "dev_reset_url" in body
+
+
 def test_forgot_password_dev_url_contains_valid_token(client, candidate_user, db):
     """Token embedded in dev_reset_url must match the hashed value stored on the user."""
     resp = client.post("/api/v1/auth/forgot-password", json={"email": candidate_user.email})
@@ -122,6 +131,17 @@ def test_resend_verification_no_transport_returns_dev_verify_url(client, candida
     body = resp.json()
     assert "dev_verify_url" in body
     assert "/verify-email?token=" in body["dev_verify_url"]
+
+
+def test_resend_verification_fallback_sets_email_delivery_failed(client, candidate_user_unverified):
+    """No transport configured in test env — resend-verification must set email_delivery_failed=True."""
+    resp = client.post("/api/v1/auth/resend-verification", json={
+        "email": candidate_user_unverified.email,
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("email_delivery_failed") is True
+    assert "dev_verify_url" in body
 
 
 def test_resend_verification_already_verified_returns_generic(client, candidate_user):

@@ -23,6 +23,21 @@ def test_register_candidate_success(client):
     assert "dev_verify_url" in body
 
 
+def test_register_fallback_sets_email_delivery_failed(client):
+    """No transport configured in test env — register must set email_delivery_failed=True."""
+    resp = client.post("/api/v1/auth/register", json={
+        "email": "fallback_register@test.com",
+        "full_name": "Fallback User",
+        "password": "SecurePass1!",
+        "role": "candidate",
+    })
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body.get("email_delivery_failed") is True
+    assert "dev_verify_url" in body
+    assert "/verify-email?token=" in body["dev_verify_url"]
+
+
 def test_register_recruiter_success(client):
     resp = client.post("/api/v1/auth/register", json={
         "email": "new_recruiter@test.com",
