@@ -268,33 +268,75 @@ async def career_chat(
     """
     AI career coaching chat. Optionally pass resume_id for context-aware advice.
     """
-    resume_context = ""
-    if body.resume_id:
-        resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
-        if resume and (resume.user_id == current_user.id or current_user.role.value in ("admin", "recruiter")):
-            parts = []
-            if resume.candidate_name:
-                parts.append(f"Candidate: {resume.candidate_name}")
-            if resume.experience_years:
-                parts.append(f"Experience: {resume.experience_years:.0f} years")
-            if resume.education_level:
-                parts.append(f"Education: {resume.education_level}")
-            if resume.extracted_skills:
-                parts.append(f"Skills: {', '.join(resume.extracted_skills[:20])}")
-            if resume.ats_score:
-                parts.append(f"ATS Score: {resume.ats_score:.0f}/100")
-            resume_context = "\n".join(parts)
+    import asyncio as _asyncio
 
-    svc = get_llm_service()
-    try:
-        reply = await svc.career_chat(
-            message=body.message,
-            resume_context=resume_context,
+    logger.info(
+        "career-chat: entry — user_id=%d resume_id=%s msg_len=%d",
+        current_user.id, body.resume_id, len(body.message),
+    )
+
+    async def _handle() -> ChatResponse:
+        resume_context = ""
+        if body.resume_id:
+            resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
+            if resume and (resume.user_id == current_user.id or current_user.role.value in ("admin", "recruiter")):
+                parts = []
+                if resume.candidate_name:
+                    parts.append(f"Candidate: {resume.candidate_name}")
+                if resume.experience_years:
+                    parts.append(f"Experience: {resume.experience_years:.0f} years")
+                if resume.education_level:
+                    parts.append(f"Education: {resume.education_level}")
+                if resume.extracted_skills:
+                    parts.append(f"Skills: {', '.join(resume.extracted_skills[:20])}")
+                if resume.ats_score:
+                    parts.append(f"ATS Score: {resume.ats_score:.0f}/100")
+                resume_context = "\n".join(parts)
+                logger.info(
+                    "career-chat: resume context loaded — resume_id=%d context_len=%d",
+                    body.resume_id, len(resume_context),
+                )
+            else:
+                logger.warning(
+                    "career-chat: resume_id=%s not found or not authorized for user_id=%d",
+                    body.resume_id, current_user.id,
+                )
+
+        svc = get_llm_service()
+        logger.info(
+            "career-chat: LLM provider=%r available=%s",
+            svc.provider, svc.is_available,
         )
-        provider = svc.provider if svc.is_available else "template"
-    except Exception:
-        logger.exception("Unhandled error in career_chat; using template")
-        reply = LLMService._template_chat_reply(body.message)
-        provider = "template"
 
-    return ChatResponse(reply=reply, provider=provider)
+        try:
+            reply = await svc.career_chat(
+                message=body.message,
+                resume_context=resume_context,
+            )
+            provider = svc.provider if svc.is_available else "template"
+        except Exception:
+            logger.exception("career-chat: svc.career_chat raised — using template")
+            reply = LLMService._template_chat_reply(body.message)
+            provider = "template"
+
+        logger.info("career-chat: reply built — provider=%r reply_len=%d", provider, len(reply))
+        return ChatResponse(reply=reply, provider=provider)
+
+    try:
+        return await _asyncio.wait_for(_handle(), timeout=60.0)
+    except _asyncio.TimeoutError:
+        logger.error("career-chat: 60 s hard timeout exceeded — user_id=%d", current_user.id)
+        raise HTTPException(
+            status_code=504,
+            detail="Response timed out — the AI service is busy. Please try again.",
+        )
+    except HTTPException:
+        raise
+    except _asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("career-chat: unhandled top-level exception — user_id=%d", current_user.id)
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error in career chat",
+        )

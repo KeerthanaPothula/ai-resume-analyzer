@@ -42,6 +42,13 @@ export default function ChatAssistant() {
     enabled: open,
   });
 
+  // Auto-select the first resume when resumes load (user can still override)
+  useEffect(() => {
+    if (resumes.length > 0 && resumeId === "") {
+      setResumeId(resumes[0].id);
+    }
+  }, [resumes]);
+
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: (message: string) =>
       aiFeedbackApi

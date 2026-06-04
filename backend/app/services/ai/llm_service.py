@@ -907,8 +907,8 @@ class LLMService:
             if self.provider == "openai" and settings.OPENAI_API_KEY:
                 return await self._call_openai_text(prompt)
         except Exception:
-            pass
-        return self._template_chat_reply(prompt)
+            logger.exception("_call_llm_text: LLM call failed")
+        return ""
 
     async def _call_gemini_text(self, prompt: str) -> str:
         from google import genai
