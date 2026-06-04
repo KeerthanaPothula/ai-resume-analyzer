@@ -291,8 +291,11 @@ async def forgot_password(
                 "[EMAIL-FAIL] forgot-password — to=%s  error=%s: %s  url=%s",
                 user.email, type(exc).__name__, exc, reset_url,
             )
-        if email_delivery_failed and settings.fallback_url_enabled:
-            return {**generic_response, "email_delivery_failed": True, "dev_reset_url": reset_url}
+        if email_delivery_failed:
+            result = {**generic_response, "email_delivery_failed": True}
+            if settings.fallback_url_enabled:
+                result["dev_reset_url"] = reset_url
+            return result
         return generic_response
     else:
         logger.info(

@@ -72,36 +72,27 @@ async def lifespan(app: FastAPI):
         logger.info("Embeddings disabled (ENABLE_EMBEDDINGS=false) — ATS scoring uses keyword-overlap fallback")
 
     # ── Email transport diagnostic — always visible in Render logs ───────────
-    _transport = settings.active_email_transport
-    if _transport == "smtp":
-        _smtp_from = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)"
-        logger.info(
-            "Email transport: SMTP -- host=%s:%s  user=%s  from=%s  tls=%s",
-            settings.SMTP_HOST, settings.SMTP_PORT,
-            settings.SMTP_USER, _smtp_from, settings.SMTP_TLS,
-        )
-    elif _transport == "resend":
+    if settings.RESEND_API_KEY:
         _key_masked = settings.RESEND_API_KEY[:8] + "***"
-        _from = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set — will use onboarding@resend.dev)"
+        _from = (
+            settings.EMAIL_FROM
+            or settings.RESEND_FROM_EMAIL
+            or settings.EMAILS_FROM_EMAIL
+            or "(not set — will use onboarding@resend.dev)"
+        )
         logger.info("Email transport: Resend -- api_key=%s  from=%s", _key_masked, _from)
-        if not (settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL):
+        if not (settings.EMAIL_FROM or settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL):
             logger.warning(
-                "Email WARNING: RESEND_FROM_EMAIL not set -- using onboarding@resend.dev which only "
-                "works in Resend sandbox mode (delivers to account owner only). "
-                "Set RESEND_FROM_EMAIL to a verified domain address for unrestricted delivery."
+                "Email WARNING: EMAIL_FROM not set -- using onboarding@resend.dev which only "
+                "works in Resend sandbox mode (delivers to Resend account owner only). "
+                "Set EMAIL_FROM=noreply@yourdomain.com in the Render dashboard after verifying "
+                "your domain at https://resend.com/domains for unrestricted delivery."
             )
     else:
         logger.warning(
-            "Email transport: NONE -- no SMTP credentials and no RESEND_API_KEY set. "
-            "Verify/reset URLs will be logged to console only. "
-            "To enable email: set SMTP_HOST + SMTP_USER + SMTP_PASSWORD (recommended) OR "
-            "set RESEND_API_KEY (+ RESEND_FROM_EMAIL) in the Render dashboard."
-        )
-
-    if settings.smtp_enabled and settings.RESEND_API_KEY:
-        logger.warning(
-            "Email WARNING: both SMTP and Resend are configured -- SMTP will be used. "
-            "Remove RESEND_API_KEY from Render environment variables if you no longer need Resend."
+            "Email transport: NONE -- RESEND_API_KEY not set. "
+            "Verify/reset URLs will be logged to the console only. "
+            "To enable email: add RESEND_API_KEY and EMAIL_FROM in the Render dashboard."
         )
 
     if settings.EMAIL_FALLBACK_ENABLED:
@@ -306,20 +297,18 @@ def root():
 
 @app.get("/health")
 def health():
-    _transport = settings.active_email_transport
-    if _transport == "resend":
-        _from = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "onboarding@resend.dev"
-    elif _transport == "smtp":
-        _from = settings.EMAILS_FROM_EMAIL or settings.SMTP_USER or "(not set)"
-    else:
-        _from = None
+    _from = (
+        settings.EMAIL_FROM
+        or settings.RESEND_FROM_EMAIL
+        or settings.EMAILS_FROM_EMAIL
+        or ("onboarding@resend.dev" if settings.RESEND_API_KEY else None)
+    )
     return {
         "status": "healthy",
         "email": {
-            "transport": _transport,
-            "configured": _transport != "none",
+            "transport": settings.active_email_transport,
+            "configured": settings.email_enabled,
             "from_address": _from,
-            "smtp_configured": settings.smtp_enabled,
             "resend_configured": bool(settings.RESEND_API_KEY),
             "fallback_enabled": settings.fallback_url_enabled,
         },
@@ -368,7 +357,7 @@ def resend_debug():
     _configured = bool(settings.RESEND_API_KEY)
     from_addr = (
         f"{settings.EMAILS_FROM_NAME} "
-        f"<{settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or 'onboarding@resend.dev'}>"
+        f"<{settings.EMAIL_FROM or settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or 'onboarding@resend.dev'}>"
     )
     return {
         "resend_configured": _configured,
@@ -385,23 +374,20 @@ def resend_debug():
 @app.post("/api/v1/debug/email-status", tags=["Debug"])
 def email_status_debug():
     """
-    Email transport and fallback configuration status.
-
-    Returns which transport is active, whether each transport is configured,
-    and whether fallback URL mode is enabled. No auth required.
+    Email transport and fallback configuration status. No auth required.
     """
-    _transport = settings.active_email_transport
     return {
-        "transport": _transport,
+        "transport": settings.active_email_transport,
         "email_enabled": settings.email_enabled,
-        "smtp_configured": settings.smtp_enabled,
         "resend_configured": bool(settings.RESEND_API_KEY),
         "fallback_enabled": settings.fallback_url_enabled,
         "details": {
-            "smtp_host": settings.SMTP_HOST,
-            "smtp_port": settings.SMTP_PORT,
-            "smtp_user": settings.SMTP_USER,
-            "resend_from": settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or "(not set)",
+            "from_address": (
+                settings.EMAIL_FROM
+                or settings.RESEND_FROM_EMAIL
+                or settings.EMAILS_FROM_EMAIL
+                or "(not set — using onboarding@resend.dev)"
+            ),
             "debug_mode": settings.DEBUG,
             "email_fallback_enabled_flag": settings.EMAIL_FALLBACK_ENABLED,
         },

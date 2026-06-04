@@ -58,23 +58,18 @@ class Settings(BaseSettings):
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
 
     # ── Resend email transport (https://resend.com) ───────────────────────────
-    # Requires a verified sending domain. Leave unset to fall back to SMTP below.
+    # Sign up at https://resend.com — free tier: 3 000 emails/month.
+    # Set RESEND_API_KEY in the Render dashboard.
     RESEND_API_KEY: Optional[str] = None
-    # Must match a verified domain in your Resend account (e.g. noreply@yourdomain.com).
-    # Leave unset to use SMTP transport instead (recommended when no custom domain).
-    RESEND_FROM_EMAIL: Optional[str] = None
+    # Sender address — must be on a verified Resend domain (e.g. noreply@yourdomain.com).
+    # Without a verified domain, onboarding@resend.dev is used (sandbox — delivers to
+    # the Resend account owner only).
+    # Preferred env var: EMAIL_FROM. RESEND_FROM_EMAIL accepted for backwards compat.
+    EMAIL_FROM: Optional[str] = None
+    RESEND_FROM_EMAIL: Optional[str] = None  # backwards compat alias — prefer EMAIL_FROM
 
-    # ── SMTP email transport (Gmail / Outlook / any SMTP provider) ────────────
-    # Works out of the box with Gmail App Passwords (no custom domain needed).
-    # Gmail: enable 2FA → https://myaccount.google.com/apppasswords → generate 16-char password.
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None          # Your email address
-    SMTP_PASSWORD: Optional[str] = None      # App Password (NOT your login password)
-    SMTP_TLS: bool = True                    # STARTTLS on port 587; set False only for SSL/465
-
-    # Shared display settings used by both transports
-    EMAILS_FROM_EMAIL: Optional[str] = None  # Overrides SMTP_USER / RESEND_FROM_EMAIL as display From
+    # Shared display settings
+    EMAILS_FROM_EMAIL: Optional[str] = None  # legacy alias — prefer EMAIL_FROM
     EMAILS_FROM_NAME: str = "RecruitAI"
 
     # Email fallback — when True, verify/reset URLs are returned in API responses on delivery failure.
@@ -82,14 +77,9 @@ class Settings(BaseSettings):
     EMAIL_FALLBACK_ENABLED: bool = False
 
     @property
-    def smtp_enabled(self) -> bool:
-        """True when SMTP credentials are fully configured."""
-        return bool(self.SMTP_HOST and self.SMTP_USER and self.SMTP_PASSWORD)
-
-    @property
     def email_enabled(self) -> bool:
-        """True when either Resend or SMTP is configured."""
-        return bool(self.RESEND_API_KEY) or self.smtp_enabled
+        """True when Resend is configured."""
+        return bool(self.RESEND_API_KEY)
 
     @property
     def fallback_url_enabled(self) -> bool:
@@ -98,13 +88,8 @@ class Settings(BaseSettings):
 
     @property
     def active_email_transport(self) -> str:
-        """Which transport will be used: 'smtp', 'resend', or 'none'.
-        SMTP is preferred; Resend is only used when SMTP is not configured."""
-        if self.smtp_enabled:
-            return "smtp"
-        if self.RESEND_API_KEY:
-            return "resend"
-        return "none"
+        """Which transport will be used: 'resend' or 'none'."""
+        return "resend" if self.RESEND_API_KEY else "none"
 
     @model_validator(mode="after")
     def _add_frontend_url_to_origins(self) -> "Settings":

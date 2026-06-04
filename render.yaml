@@ -41,7 +41,6 @@ services:
         value: "False"
 
       # Return verify/reset URLs in API responses when email delivery fails.
-      # Required on Render free tier where outbound SMTP is blocked.
       - key: EMAIL_FALLBACK_ENABLED
         value: "true"
 
@@ -62,28 +61,23 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
-      # ── Email transport — set ONE of: Resend OR SMTP ─────────────────────────
+      # ── Email transport — Resend (https://resend.com) ────────────────────────
       #
-      # OPTION A: Resend (requires a verified sending domain — good for custom domains)
-      #   Sign up at https://resend.com (free: 3 000 emails/month).
-      #   Add + verify your domain → DNS TXT/MX records → set RESEND_API_KEY and RESEND_FROM_EMAIL.
+      # Free tier: 3 000 emails/month. No custom domain required for testing.
+      # Without EMAIL_FROM set, uses onboarding@resend.dev (sandbox mode —
+      # delivers to the Resend account owner only). For full delivery, verify
+      # your domain at https://resend.com/domains and set EMAIL_FROM below.
+      #
+      # Setup:
+      #   1. Sign up at https://resend.com → API Keys → Create API Key
+      #   2. Set RESEND_API_KEY to the re_... value (Render → Environment → Add)
+      #   3. (Production) Add your domain → verify DNS → set EMAIL_FROM
       - key: RESEND_API_KEY
         sync: false
-      # Must be an address on your verified Resend domain, e.g. noreply@yourdomain.com
-      - key: RESEND_FROM_EMAIL
-        sync: false
-
-      # OPTION B: Gmail SMTP (works without a custom domain — recommended for demos)
-      #   1. Enable 2-Step Verification on your Gmail account.
-      #   2. Generate a 16-char App Password: https://myaccount.google.com/apppasswords
-      #   3. Set SMTP_USER to your Gmail address and SMTP_PASSWORD to the App Password.
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
+      # Sender address on your verified Resend domain.
+      # Example: noreply@yourdomain.com
+      # Leave unset to use onboarding@resend.dev (sandbox — account owner only).
+      - key: EMAIL_FROM
         sync: false
 
       - key: EMAILS_FROM_NAME
