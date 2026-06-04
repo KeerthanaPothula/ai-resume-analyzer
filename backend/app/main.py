@@ -252,6 +252,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    # Allow every Vercel preview URL for this project so new deployments
+    # don't produce "Network Error" while waiting for EXTRA_CORS_ORIGINS to be updated.
+    allow_origin_regex=r"https://ai-resume-analyzer[^.]*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

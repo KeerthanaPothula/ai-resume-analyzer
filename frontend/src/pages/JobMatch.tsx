@@ -92,10 +92,14 @@ export default function JobMatch() {
       toast.success("Match analysis complete!");
     },
     onError: (err: unknown) => {
+      const e = err as { code?: string; message?: string; response?: { data?: { detail?: string } } };
       const msg =
-        (err as { message?: string; response?: { data?: { detail?: string } } })
-          ?.response?.data?.detail ??
-        (err as { message?: string })?.message ??
+        e.response?.data?.detail ??
+        (e.code === "ECONNABORTED"
+          ? "Request timed out — the server may be starting up. Please wait a moment and try again."
+          : e.message === "Network Error"
+          ? "Cannot reach the server — it may be starting up. Please wait 30 seconds and try again."
+          : e.message) ??
         "Analysis failed — please try again";
       toast.error(msg);
     },

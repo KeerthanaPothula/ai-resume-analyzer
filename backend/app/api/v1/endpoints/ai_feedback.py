@@ -162,11 +162,14 @@ async def quick_job_match(
     Match a resume against a pasted job description without needing a saved job.
     Candidates can paste any JD text and get an instant AI analysis.
     """
+    import asyncio as _asyncio
+
     logger.info(
         "quick-match: entry — user_id=%d resume_id=%d job_title=%r jd_len=%d",
         current_user.id, body.resume_id, body.job_title, len(body.job_description),
     )
-    try:
+
+    async def _handle() -> QuickMatchResponse:
         resume = db.query(Resume).filter(Resume.id == body.resume_id).first()
         if not resume:
             logger.warning(
@@ -224,7 +227,24 @@ async def quick_job_match(
         )
         return response_obj
 
+    try:
+        # Hard cap of 60 s so the server always responds before any proxy timeout.
+        # Render free-tier and most cloud load-balancers close idle connections at 60 s.
+        return await _asyncio.wait_for(_handle(), timeout=60.0)
+
+    except _asyncio.TimeoutError:
+        logger.error(
+            "quick-match: 60 s hard timeout exceeded — user_id=%d resume_id=%d",
+            current_user.id, body.resume_id,
+        )
+        raise HTTPException(
+            status_code=504,
+            detail="Analysis timed out — the AI service is busy. Please try again.",
+        )
     except HTTPException:
+        raise
+    except _asyncio.CancelledError:
+        # Client disconnected — propagate so uvicorn can clean up the task.
         raise
     except Exception:
         logger.exception(

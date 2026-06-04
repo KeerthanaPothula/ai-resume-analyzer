@@ -31,14 +31,26 @@ HISTORY_LIMIT = 50
 
 def get_recent_set(db: Session, user_id: int) -> Set[str]:
     """Return the last HISTORY_LIMIT question strings as a set."""
-    rows = (
-        db.query(UserQuestionHistory.question_text)
-        .filter(UserQuestionHistory.user_id == user_id)
-        .order_by(UserQuestionHistory.generated_at.desc())
-        .limit(HISTORY_LIMIT)
-        .all()
-    )
-    return {row.question_text for row in rows}
+    try:
+        rows = (
+            db.query(UserQuestionHistory.question_text)
+            .filter(UserQuestionHistory.user_id == user_id)
+            .order_by(UserQuestionHistory.generated_at.desc())
+            .limit(HISTORY_LIMIT)
+            .all()
+        )
+        return {row.question_text for row in rows}
+    except Exception:
+        logger.warning(
+            "question_history.get_recent_set failed for user_id=%d "
+            "(table may not exist yet — proceeding without exclusion set)",
+            user_id,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return set()
 
 
 def record_questions(db: Session, user_id: int, questions: List[str]) -> None:

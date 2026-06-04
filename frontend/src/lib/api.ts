@@ -20,15 +20,25 @@ const API_BASE = _rawApiUrl ? `${_rawApiUrl}/api/v1` : "/api/v1";
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
-  timeout: 30000, // 30 s — generous for AI endpoints that call Gemini
+  timeout: 30000,
+});
+
+// Separate instance for AI endpoints — Render free tier cold-start (30 s) +
+// Gemini call (up to 25 s) can exceed the default 30 s budget.
+export const aiApi = axios.create({
+  baseURL: API_BASE,
+  headers: { "Content-Type": "application/json" },
+  timeout: 90000, // 90 s: cold-start (30) + Gemini timeout (25) + buffer
 });
 
 // ── Request interceptor — attach access token ──────────────────────────────
-api.interceptors.request.use((config) => {
+function _attachToken(config: import("axios").InternalAxiosRequestConfig) {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
-});
+}
+api.interceptors.request.use(_attachToken);
+aiApi.interceptors.request.use(_attachToken);
 
 // ── HTML response detector ─────────────────────────────────────────────────
 // When VITE_API_URL is missing in production, Vercel's SPA rewrite returns
@@ -70,61 +80,65 @@ function drainQueue(token: string | null) {
   pendingQueue = [];
 }
 
-// ── Response interceptor — HTML check + silent refresh on 401 ─────────────
-api.interceptors.response.use(
-  (res) => _detectHtmlResponse(res),
-  async (error) => {
-    const original: AxiosRequestConfig & { _retry?: boolean } = error.config;
+// ── Response interceptor factory (shared by api and aiApi) ────────────────
+function _makeResponseInterceptor(instance: import("axios").AxiosInstance) {
+  return instance.interceptors.response.use(
+    (res) => _detectHtmlResponse(res),
+    async (error) => {
+      const original: AxiosRequestConfig & { _retry?: boolean } = error.config;
 
-    if (error.response?.status !== 401 || original._retry) {
-      return Promise.reject(error);
-    }
+      if (error.response?.status !== 401 || original._retry) {
+        return Promise.reject(error);
+      }
 
-    // If another refresh is already in flight, queue this request
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        pendingQueue.push((newToken) => {
-          if (newToken) {
-            original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
-            resolve(api(original));
-          } else {
-            reject(error);
-          }
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          pendingQueue.push((newToken) => {
+            if (newToken) {
+              original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
+              resolve(instance(original));
+            } else {
+              reject(error);
+            }
+          });
         });
-      });
+      }
+
+      original._retry = true;
+      isRefreshing = true;
+
+      const storedRefresh = localStorage.getItem("refresh_token");
+      if (!storedRefresh) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
+      try {
+        const res = await api.post("/auth/refresh", { refresh_token: storedRefresh });
+        const { access_token, refresh_token: newRefresh } = res.data;
+
+        localStorage.setItem("token", access_token);
+        localStorage.setItem("refresh_token", newRefresh);
+
+        drainQueue(access_token);
+        original.headers = { ...original.headers, Authorization: `Bearer ${access_token}` };
+        return instance(original);
+      } catch {
+        drainQueue(null);
+        localStorage.removeItem("token");
+        localStorage.removeItem("refresh_token");
+        window.location.href = "/login";
+        return Promise.reject(error);
+      } finally {
+        isRefreshing = false;
+      }
     }
+  );
+}
 
-    original._retry = true;
-    isRefreshing = true;
-
-    const storedRefresh = localStorage.getItem("refresh_token");
-    if (!storedRefresh) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-      return Promise.reject(error);
-    }
-
-    try {
-      const res = await api.post("/auth/refresh", { refresh_token: storedRefresh });
-      const { access_token, refresh_token: newRefresh } = res.data;
-
-      localStorage.setItem("token", access_token);
-      localStorage.setItem("refresh_token", newRefresh);
-
-      drainQueue(access_token);
-      original.headers = { ...original.headers, Authorization: `Bearer ${access_token}` };
-      return api(original);
-    } catch {
-      drainQueue(null);
-      localStorage.removeItem("token");
-      localStorage.removeItem("refresh_token");
-      window.location.href = "/login";
-      return Promise.reject(error);
-    } finally {
-      isRefreshing = false;
-    }
-  }
-);
+_makeResponseInterceptor(api);
+_makeResponseInterceptor(aiApi);
 
 export default api;
 
@@ -225,7 +239,7 @@ export const aiFeedbackApi = {
   jobMatchFeedback: (resumeId: number, jobId: number) =>
     api.post(`/ai-feedback/resume/${resumeId}/job/${jobId}`),
   quickMatch: (resumeId: number, jobTitle: string, jobDescription: string) =>
-    api.post("/ai-feedback/quick-match", { resume_id: resumeId, job_title: jobTitle, job_description: jobDescription }),
+    aiApi.post("/ai-feedback/quick-match", { resume_id: resumeId, job_title: jobTitle, job_description: jobDescription }),
   chat: (message: string, resumeId?: number) =>
     api.post("/ai-feedback/chat", { message, resume_id: resumeId }),
 };
