@@ -50,9 +50,9 @@ export default function ChatAssistant() {
   }, [resumes]);
 
   const { mutate: sendMessage, isPending } = useMutation({
-    mutationFn: (message: string) =>
+    mutationFn: ({ text, history }: { text: string; history: ChatMessage[] }) =>
       aiFeedbackApi
-        .chat(message, resumeId === "" ? undefined : resumeId)
+        .chat(text, resumeId === "" ? undefined : resumeId, history)
         .then((r) => r.data.reply as string),
     onSuccess: (reply) => {
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -71,9 +71,10 @@ export default function ChatAssistant() {
   const handleSend = () => {
     const text = input.trim();
     if (!text || isPending) return;
+    const history = messages.slice(1); // exclude the initial greeting
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setInput("");
-    sendMessage(text);
+    sendMessage({ text, history });
   };
 
   const handleKey = (e: React.KeyboardEvent) => {

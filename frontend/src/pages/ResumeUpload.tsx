@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, FileText, X, CheckCircle, Loader2, AlertCircle,
@@ -73,6 +74,7 @@ export default function ResumeUpload() {
   const [stage, setStage] = useState<UploadStage>("idle");
   const [resumeId, setResumeId] = useState<number | null>(null);
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { theme } = useThemeStore();
   const isDark = theme === "dark";
 
@@ -116,6 +118,7 @@ export default function ResumeUpload() {
       setResumeId(res.data.id);
       setStage("done");
       toast.success("Resume analyzed successfully!");
+      qc.invalidateQueries({ queryKey: ["dashboard", "candidate"] });
     } catch (err: unknown) {
       setStage("error");
       const detail = (err as { response?: { data?: { detail?: string } } })

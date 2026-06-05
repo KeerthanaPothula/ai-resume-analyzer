@@ -694,14 +694,17 @@ Do NOT use generic filler questions. Questions must differ meaningfully across r
 """
 
 _CHAT_PROMPT = (
-    "You are an expert AI career coach specializing in resume optimization, "
-    "ATS systems, job searching, and interview preparation. "
-    "You give concise, actionable, and encouraging advice.\n\n"
-    "{context}\n\n"
+    "You are an expert AI career coach. Answer the user's question directly.\n\n"
+    "Rules:\n"
+    "- Answer exactly what the user asked. Do not give unprompted resume analysis.\n"
+    "- Reference the candidate profile ONLY when it is relevant to their question.\n"
+    "- Do NOT repeat the ATS score or summarize the resume unless explicitly asked.\n"
+    "- If the message is unclear or not career-related, ask a brief clarifying question.\n"
+    "- Keep replies to 2-3 paragraphs. Be warm, specific, and actionable.\n\n"
+    "{context}"
+    "{history}"
     "User: {message}\n\n"
-    "Respond in 2-4 paragraphs. Be specific and actionable. "
-    "Use a warm, professional tone. "
-    "Do NOT use excessive bullet points — prefer flowing, readable prose."
+    "Response:"
 )
 
 
@@ -887,15 +890,30 @@ class LLMService:
         self,
         message: str,
         resume_context: str = "",
+        history: Optional[List[dict]] = None,
     ) -> str:
-        """Single-turn career coaching chat."""
-        context = f"Resume context:\n{resume_context[:1500]}\n" if resume_context else ""
-        prompt = _CHAT_PROMPT.format(context=context, message=message)
+        """Conversational career coaching chat."""
+        context = (
+            f"[Candidate profile — reference only when relevant to the question]\n"
+            f"{resume_context[:800]}\n\n"
+        ) if resume_context else ""
+
+        history_block = ""
+        if history:
+            lines = []
+            for turn in history[-8:]:  # last 4 exchanges
+                role = "User" if turn.get("role") == "user" else "Assistant"
+                content = str(turn.get("content", "")).strip()
+                if content:
+                    lines.append(f"{role}: {content}")
+            if lines:
+                history_block = "\n".join(lines) + "\n\n"
+
+        prompt = _CHAT_PROMPT.format(context=context, history=history_block, message=message)
 
         if not self.is_available:
             return self._template_chat_reply(message)
 
-        # Chat returns prose, not JSON — use _call_llm_text directly.
         reply = await self._call_llm_text(prompt)
         return reply or self._template_chat_reply(message)
 

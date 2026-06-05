@@ -312,6 +312,7 @@ async def career_chat(
             reply = await svc.career_chat(
                 message=body.message,
                 resume_context=resume_context,
+                history=body.history or [],
             )
             provider = svc.provider if svc.is_available else "template"
         except Exception:
