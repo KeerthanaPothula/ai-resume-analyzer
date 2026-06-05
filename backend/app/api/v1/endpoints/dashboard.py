@@ -77,10 +77,18 @@ def recruiter_summary(
     )
     job_ids = [j.id for j in jobs]
 
-    # Count distinct candidate users with at least one resume (not raw resume rows)
-    total_candidates = (
-        db.query(func.count(func.distinct(Resume.user_id))).scalar() or 0
-    )
+    # Count distinct applicants to this recruiter's jobs only
+    if job_ids:
+        total_candidates = (
+            db.query(func.count(func.distinct(CandidateRanking.resume_id)))
+            .filter(
+                CandidateRanking.job_id.in_(job_ids),
+                CandidateRanking.is_applied == True,  # noqa: E712
+            )
+            .scalar() or 0
+        )
+    else:
+        total_candidates = 0
     now = datetime.now(timezone.utc)
     this_month_jobs = [
         j for j in jobs
