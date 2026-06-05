@@ -16,7 +16,7 @@
 
 **AI-powered resume analysis, ATS optimization, and candidate ranking platform for job seekers and recruiters.**
 
-[Live Demo](https://ai-resume-analyzer-nine-peach.vercel.app) · [API Docs](https://ai-resume-analyzer-nine-peach.vercel.app) (dev: `localhost:8000/docs`) · [Report Bug](https://github.com/KeerthanaPothula/ai-resume-analyzer/issues)
+[Live Demo](https://ai-resume-analyzer-nine-peach.vercel.app) · [API Docs](https://recruitai-backend-f6pi.onrender.com/docs) · [Report Bug](https://github.com/KeerthanaPothula/ai-resume-analyzer/issues)
 
 </div>
 
