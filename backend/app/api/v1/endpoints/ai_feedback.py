@@ -69,6 +69,7 @@ async def generate_resume_feedback(
     if resume.user_id != current_user.id and current_user.role.value not in ("admin", "recruiter"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    db.close()  # release connection before slow LLM call
     svc = get_llm_service()
     try:
         feedback, provider = await svc.generate_resume_feedback(
@@ -123,6 +124,7 @@ async def generate_job_match_feedback(
 
     svc = get_llm_service()
     exclude = qh.get_recent_set(db, current_user.id)
+    db.close()  # release connection before slow LLM call
     try:
         feedback, provider = await svc.generate_job_match_feedback(
             raw_text=resume.raw_text or "",
@@ -194,6 +196,7 @@ async def quick_job_match(
         )
 
         exclude = qh.get_recent_set(db, current_user.id)
+        db.close()  # release connection before slow LLM call
         try:
             result, provider = await svc.quick_job_match(
                 raw_text=resume.raw_text or "",
@@ -299,6 +302,7 @@ async def career_chat(
                     body.resume_id, current_user.id,
                 )
 
+        db.close()  # release connection before slow LLM call
         svc = get_llm_service()
         logger.info(
             "career-chat: LLM provider=%r available=%s",
