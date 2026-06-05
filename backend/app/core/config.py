@@ -45,12 +45,18 @@ class Settings(BaseSettings):
     ]
     EXTRA_CORS_ORIGINS: str = ""
 
-    # LLM / AI feedback — set LLM_PROVIDER to "openai" or "gemini" and supply the matching key
-    LLM_PROVIDER: str = "none"       # "openai" | "gemini" | "none"
+    # LLM / AI feedback
+    # Routing is automatic: configure any subset of the keys below.
+    # ATS / Job-match  → Gemini → OpenAI → Groq
+    # Career chat      → OpenAI → Gemini → Groq
+    # LLM_PROVIDER is kept for backwards compatibility and status reporting only.
+    LLM_PROVIDER: str = "none"       # legacy — ignored for routing; set any key below
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4o-mini"
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     # Password reset / Email verification
     FRONTEND_URL: str = "http://localhost:5173"

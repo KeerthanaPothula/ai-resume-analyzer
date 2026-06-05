@@ -71,7 +71,7 @@ async def generate_resume_feedback(
 
     svc = get_llm_service()
     try:
-        feedback = await svc.generate_resume_feedback(
+        feedback, provider = await svc.generate_resume_feedback(
             raw_text=resume.raw_text or "",
             skills=resume.extracted_skills or [],
             experience_years=resume.experience_years or 0.0,
@@ -80,7 +80,6 @@ async def generate_resume_feedback(
             ats_score=resume.ats_score or 0.0,
             strengths=resume.strengths or [],
         )
-        provider = svc.provider if svc.is_available else "template"
     except Exception:
         logger.exception("Unhandled error in generate_resume_feedback; using template")
         feedback = LLMService._template_resume_feedback(
@@ -125,7 +124,7 @@ async def generate_job_match_feedback(
     svc = get_llm_service()
     exclude = qh.get_recent_set(db, current_user.id)
     try:
-        feedback = await svc.generate_job_match_feedback(
+        feedback, provider = await svc.generate_job_match_feedback(
             raw_text=resume.raw_text or "",
             job_title=job.title,
             job_description=job.description,
@@ -134,7 +133,6 @@ async def generate_job_match_feedback(
             user_id=current_user.id,
             exclude=exclude,
         )
-        provider = svc.provider if svc.is_available else "template"
     except Exception:
         logger.exception("Unhandled error in generate_job_match_feedback; using template")
         feedback = LLMService._template_job_match(
@@ -197,7 +195,7 @@ async def quick_job_match(
 
         exclude = qh.get_recent_set(db, current_user.id)
         try:
-            result = await svc.quick_job_match(
+            result, provider = await svc.quick_job_match(
                 raw_text=resume.raw_text or "",
                 job_title=body.job_title,
                 job_description=body.job_description,
@@ -205,7 +203,6 @@ async def quick_job_match(
                 user_id=current_user.id,
                 exclude=exclude,
             )
-            provider = svc.provider if svc.is_available else "template"
             logger.info(
                 "quick-match: svc returned OK — provider=%r match_score=%s",
                 provider, result.get("match_score"),
@@ -309,12 +306,11 @@ async def career_chat(
         )
 
         try:
-            reply = await svc.career_chat(
+            reply, provider = await svc.career_chat(
                 message=body.message,
                 resume_context=resume_context,
                 history=body.history or [],
             )
-            provider = svc.provider if svc.is_available else "template"
         except Exception:
             logger.exception("career-chat: svc.career_chat raised — using template")
             reply = LLMService._template_chat_reply(body.message)

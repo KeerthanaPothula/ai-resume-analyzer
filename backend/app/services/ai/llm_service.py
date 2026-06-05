@@ -13,16 +13,14 @@ Configure via backend/.env:
   LLM_PROVIDER=none                      # deterministic templates, no API cost
 """
 
-import asyncio
-import json
 import logging
 import random
-import re
+import time
 from collections import deque
 from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from app.core.config import settings
+from .providers.base import ProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -708,41 +706,172 @@ _CHAT_PROMPT = (
 )
 
 
+# ── Provider Router ───────────────────────────────────────────────────────────
+
+class ProviderRouter:
+    """Tries providers in priority order, falling back on any recoverable error.
+
+    Logs provider_used, fallback_triggered, fallback_chain, and latency_ms
+    for every call so failures and degraded performance are fully observable.
+    """
+
+    def __init__(self, providers: list) -> None:
+        self._providers = providers
+
+    @property
+    def _available(self) -> list:
+        return [p for p in self._providers if p.is_available]
+
+    @property
+    def has_provider(self) -> bool:
+        return bool(self._available)
+
+    @property
+    def primary_name(self) -> str:
+        av = self._available
+        return av[0].name if av else "none"
+
+    async def call_json(
+        self, prompt: str, max_tokens: int = 2048, task: str = ""
+    ) -> "Tuple[Optional[Dict[str, Any]], str]":
+        """Returns ``(parsed_dict | None, provider_name_used)``."""
+        available = self._available
+        if not available:
+            return None, "none"
+
+        attempted: List[str] = []
+        for provider in available:
+            t0 = time.monotonic()
+            try:
+                result = await provider.generate_json(prompt, max_tokens)
+                _log_success(provider.name, task, t0, attempted)
+                return result, provider.name
+            except ProviderError as exc:
+                _log_failure(provider.name, task, t0, exc)
+                attempted.append(provider.name)
+                if not exc.is_recoverable:
+                    break
+            except Exception as exc:
+                logger.error(
+                    "provider=%s task=%s unexpected error after %dms: %s: %s",
+                    provider.name, task, _ms(t0), type(exc).__name__, exc,
+                )
+                attempted.append(provider.name)
+
+        logger.error(
+            "All providers exhausted for task=%s. Tried: %s",
+            task, "→".join(attempted) or "none",
+        )
+        return None, attempted[-1] if attempted else "none"
+
+    async def call_text(
+        self, prompt: str, max_tokens: int = 1024, task: str = ""
+    ) -> "Tuple[str, str]":
+        """Returns ``(text | '', provider_name_used)``."""
+        available = self._available
+        if not available:
+            return "", "none"
+
+        attempted: List[str] = []
+        for provider in available:
+            t0 = time.monotonic()
+            try:
+                result = await provider.generate_text(prompt, max_tokens)
+                _log_success(provider.name, task, t0, attempted)
+                return result, provider.name
+            except ProviderError as exc:
+                _log_failure(provider.name, task, t0, exc)
+                attempted.append(provider.name)
+                if not exc.is_recoverable:
+                    break
+            except Exception as exc:
+                logger.error(
+                    "provider=%s task=%s unexpected error after %dms: %s: %s",
+                    provider.name, task, _ms(t0), type(exc).__name__, exc,
+                )
+                attempted.append(provider.name)
+
+        logger.error(
+            "All providers exhausted for task=%s. Tried: %s",
+            task, "→".join(attempted) or "none",
+        )
+        return "", attempted[-1] if attempted else "none"
+
+
+def _ms(t0: float) -> int:
+    return int((time.monotonic() - t0) * 1000)
+
+
+def _log_success(name: str, task: str, t0: float, attempted: List[str]) -> None:
+    if attempted:
+        logger.info(
+            "provider_used=%s task=%s fallback_triggered=True fallback_chain=%s latency_ms=%d",
+            name, task, "→".join(attempted), _ms(t0),
+        )
+    else:
+        logger.info(
+            "provider_used=%s task=%s fallback_triggered=False latency_ms=%d",
+            name, task, _ms(t0),
+        )
+
+
+def _log_failure(name: str, task: str, t0: float, exc: ProviderError) -> None:
+    logger.warning(
+        "provider=%s task=%s failed latency_ms=%d status_code=%d recoverable=%s: %s",
+        name, task, _ms(t0), exc.status_code, exc.is_recoverable, exc,
+    )
+
+
 # ── LLM Service ───────────────────────────────────────────────────────────────
 
 class LLMService:
     """
-    Unified interface for Gemini (google-genai v2), OpenAI, and template fallback.
-    Clients are lazy-loaded on first use — startup is never blocked.
+    Multi-provider LLM service with automatic fallback.
+
+    Provider priority per task:
+      ATS / Job-match : Gemini → OpenAI → Groq
+      Career chat     : OpenAI → Gemini → Groq
+
+    All public methods return a ``(result, provider_name)`` tuple where
+    ``provider_name`` is whichever provider actually answered (or "template").
     """
 
     def __init__(self) -> None:
-        self._gemini_client = None   # google.genai.Client
-        self._openai_client = None   # openai.AsyncOpenAI
+        from .providers import GeminiProvider, OpenAIProvider, GroqProvider
+
+        _gemini = GeminiProvider()
+        _oai    = OpenAIProvider()
+        _groq   = GroqProvider()
+
+        # ATS analysis: Gemini → OpenAI → Groq
+        self._ats_router  = ProviderRouter([_gemini, _oai, _groq])
+        # Job match:     Gemini → OpenAI → Groq
+        self._job_router  = ProviderRouter([_gemini, _oai, _groq])
+        # Career chat:   OpenAI → Gemini → Groq
+        self._chat_router = ProviderRouter([_oai, _gemini, _groq])
 
     # ── Public properties ─────────────────────────────────────────────────────
 
     @property
-    def provider(self) -> str:
-        return settings.LLM_PROVIDER.lower()
+    def is_available(self) -> bool:
+        """True when at least one provider has a configured API key."""
+        return (
+            self._ats_router.has_provider
+            or self._job_router.has_provider
+            or self._chat_router.has_provider
+        )
 
     @property
-    def model_name(self) -> str:
-        if self.provider == "gemini":
-            return settings.GEMINI_MODEL
-        if self.provider == "openai":
-            return settings.OPENAI_MODEL
+    def provider(self) -> str:
+        """Primary configured provider name for status reporting."""
+        for router in (self._ats_router, self._job_router, self._chat_router):
+            if router.has_provider:
+                return router.primary_name
         return "none"
 
-    @property
-    def is_available(self) -> bool:
-        if self.provider == "gemini":
-            return bool(settings.GEMINI_API_KEY)
-        if self.provider == "openai":
-            return bool(settings.OPENAI_API_KEY)
-        return False
-
     # ── High-level feedback methods ───────────────────────────────────────────
+    # All methods return (result, provider_name) where provider_name is the
+    # provider that answered, or "template" when all providers failed / none configured.
 
     async def generate_resume_feedback(
         self,
@@ -753,9 +882,9 @@ class LLMService:
         weaknesses: List[str],
         ats_score: float = 0.0,
         strengths: Optional[List[str]] = None,
-    ) -> ResumeFeedback:
-        if not self.is_available:
-            return self._template_resume_feedback(skills, experience_years, education_level, weaknesses)
+    ) -> "Tuple[ResumeFeedback, str]":
+        if not self._ats_router.has_provider:
+            return self._template_resume_feedback(skills, experience_years, education_level, weaknesses), "template"
 
         prompt = _RESUME_PROMPT.format(
             resume_text=raw_text[:3000],
@@ -766,10 +895,9 @@ class LLMService:
             strengths=", ".join((strengths or [])[:5]) if strengths else "not yet analyzed",
             weaknesses=", ".join(weaknesses[:5]) if weaknesses else "none",
         )
-
-        data = await self._call_llm(prompt)
+        data, provider = await self._ats_router.call_json(prompt, task="resume_feedback")
         if not data:
-            return self._template_resume_feedback(skills, experience_years, education_level, weaknesses)
+            return self._template_resume_feedback(skills, experience_years, education_level, weaknesses), "template"
 
         return ResumeFeedback(
             summary=str(data.get("summary", "")),
@@ -778,7 +906,7 @@ class LLMService:
             ats_optimization_tips=list(data.get("ats_optimization_tips", [])),
             overall_assessment=str(data.get("overall_assessment", "")),
             interview_questions=list(data.get("interview_questions", [])),
-        )
+        ), provider
 
     async def generate_job_match_feedback(
         self,
@@ -789,9 +917,9 @@ class LLMService:
         missing_skills: List[str],
         user_id: int = 0,
         exclude: Optional[Set[str]] = None,
-    ) -> JobMatchFeedback:
-        if not self.is_available:
-            return self._template_job_match(job_title, matched_skills, missing_skills, user_id, exclude)
+    ) -> "Tuple[JobMatchFeedback, str]":
+        if not self._job_router.has_provider:
+            return self._template_job_match(job_title, matched_skills, missing_skills, user_id, exclude), "template"
 
         prompt = _JOB_MATCH_PROMPT.format(
             resume_text=raw_text[:2000],
@@ -809,9 +937,9 @@ class LLMService:
                 + "\nGenerate completely different questions for interview_questions."
             )
 
-        data = await self._call_llm(prompt)
+        data, provider = await self._job_router.call_json(prompt, task="job_match_feedback")
         if not data:
-            return self._template_job_match(job_title, matched_skills, missing_skills, user_id, exclude)
+            return self._template_job_match(job_title, matched_skills, missing_skills, user_id, exclude), "template"
 
         questions = list(data.get("interview_questions", []))
         if exclude is None:
@@ -823,7 +951,7 @@ class LLMService:
             interview_questions=questions,
             ats_tips=list(data.get("ats_tips", [])),
             recommendation=str(data.get("recommendation", "")),
-        )
+        ), provider
 
     async def quick_job_match(
         self,
@@ -833,26 +961,23 @@ class LLMService:
         skills: List[str] = None,
         user_id: int = 0,
         exclude: Optional[Set[str]] = None,
-    ) -> Dict[str, Any]:
+    ) -> "Tuple[Dict[str, Any], str]":
         """Match a resume against a pasted job description without needing a saved job."""
         logger.info(
-            "LLMService.quick_job_match: provider=%r available=%s raw_text_len=%d jd_len=%d",
-            self.provider, self.is_available, len(raw_text), len(job_description),
+            "quick_job_match: available=%s raw_text_len=%d jd_len=%d",
+            self._ats_router.has_provider, len(raw_text), len(job_description),
         )
 
-        if not self.is_available:
-            logger.info("LLMService.quick_job_match: no LLM configured — returning template")
-            return self._template_quick_match(job_title, skills or [], user_id, exclude)
+        if not self._ats_router.has_provider:
+            return self._template_quick_match(job_title, skills or [], user_id, exclude), "template"
 
         prompt = _QUICK_MATCH_PROMPT.format(
             resume_text=raw_text[:2500],
             job_title=job_title,
             job_description=job_description[:2000],
         )
-        # Prefer caller-supplied DB exclude; fall back to in-memory cache.
         recent_qs: Set[str] = exclude if exclude is not None else _get_user_recent(user_id)
         if recent_qs:
-            # Cap at 15 entries to keep prompt concise.
             recent_block = "\n".join(f"- {q}" for q in list(recent_qs)[:15])
             prompt += (
                 "\n\nRECENTLY GENERATED QUESTIONS — do NOT repeat any of these:\n"
@@ -860,17 +985,11 @@ class LLMService:
                 + "\nGenerate completely different questions for interview_questions."
             )
 
-        logger.info("LLMService.quick_job_match: calling _call_llm (prompt_len=%d)", len(prompt))
-        data = await self._call_llm(prompt)
-
+        data, provider = await self._ats_router.call_json(prompt, task="quick_job_match")
         if not data:
-            logger.info("LLMService.quick_job_match: LLM returned no data — using template")
-            return self._template_quick_match(job_title, skills or [], user_id, exclude)
-
-        logger.info("LLMService.quick_job_match: LLM returned data (%d keys)", len(data))
+            return self._template_quick_match(job_title, skills or [], user_id, exclude), "template"
 
         questions = list(data.get("interview_questions", []))
-        # Only update in-memory cache on the non-DB fallback path.
         if exclude is None:
             _record_user_questions(user_id, questions)
 
@@ -884,14 +1003,14 @@ class LLMService:
             "interview_questions": questions,
             "ats_tips": list(data.get("ats_tips", [])),
             "recommendation": str(data.get("recommendation", "Moderate match - upskill first")),
-        }
+        }, provider
 
     async def career_chat(
         self,
         message: str,
         resume_context: str = "",
         history: Optional[List[dict]] = None,
-    ) -> str:
+    ) -> "Tuple[str, str]":
         """Conversational career coaching chat."""
         context = (
             f"[Candidate profile — reference only when relevant to the question]\n"
@@ -911,63 +1030,36 @@ class LLMService:
 
         prompt = _CHAT_PROMPT.format(context=context, history=history_block, message=message)
 
-        if not self.is_available:
-            return self._template_chat_reply(message)
+        if not self._chat_router.has_provider:
+            return self._template_chat_reply(message), "template"
 
-        reply = await self._call_llm_text(prompt)
-        return reply or self._template_chat_reply(message)
+        reply, provider = await self._chat_router.call_text(prompt, task="career_chat")
+        return reply or self._template_chat_reply(message), provider or "template"
 
-    async def _call_llm_text(self, prompt: str) -> str:
-        """Like _call_llm but returns the raw text instead of parsed JSON."""
-        try:
-            if self.provider == "gemini" and settings.GEMINI_API_KEY:
-                return await self._call_gemini_text(prompt)
-            if self.provider == "openai" and settings.OPENAI_API_KEY:
-                return await self._call_openai_text(prompt)
-        except Exception:
-            logger.exception("_call_llm_text: LLM call failed")
-        return ""
+    async def ping(self) -> Dict[str, Any]:
+        """Smoke-test all configured providers."""
+        from .providers import GeminiProvider, OpenAIProvider, GroqProvider
 
-    async def _call_gemini_text(self, prompt: str) -> str:
-        from google import genai
-        from google.genai import types as genai_types
+        probe = 'Return exactly this JSON and nothing else: {"ok": true}'
+        results: Dict[str, Any] = {}
+        for p in [GeminiProvider(), OpenAIProvider(), GroqProvider()]:
+            if not p.is_available:
+                continue
+            t0 = time.monotonic()
+            try:
+                data, _ = await ProviderRouter([p]).call_json(probe, task="ping")
+                results[p.name] = {
+                    "ok": data is not None,
+                    "latency_ms": _ms(t0),
+                    "response": data,
+                }
+            except Exception as exc:
+                results[p.name] = {"ok": False, "latency_ms": _ms(t0), "error": str(exc)}
 
-        if self._gemini_client is None:
-            self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-        cfg = genai_types.GenerateContentConfig(
-            temperature=0.6,
-            max_output_tokens=1024,
-        )
-
-        loop = asyncio.get_running_loop()
-        response = await asyncio.wait_for(
-            loop.run_in_executor(
-                None,
-                lambda: self._gemini_client.models.generate_content(
-                    model=settings.GEMINI_MODEL, contents=prompt, config=cfg
-                ),
-            ),
-            timeout=25.0,
-        )
-        return (response.text or "").strip()
-
-    async def _call_openai_text(self, prompt: str) -> str:
-        from openai import AsyncOpenAI
-
-        if self._openai_client is None:
-            self._openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-        response = await self._openai_client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": "You are an expert AI career coach."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.6,
-            max_tokens=1024,
-        )
-        return response.choices[0].message.content or ""
+        return {
+            "ok": any(v.get("ok") for v in results.values()),
+            "providers": results,
+        }
 
     @staticmethod
     def _template_quick_match(
@@ -1033,197 +1125,6 @@ class LLMService:
             "attend meetups, and contribute to communities. "
             "Let me know if you have a more specific question!"
         )
-
-    async def ping(self) -> Dict[str, Any]:
-        """Smoke-test the configured provider with a minimal API call."""
-        if not self.is_available:
-            return {
-                "ok": False,
-                "provider": self.provider,
-                "model": None,
-                "error": (
-                    f"No API key configured for provider '{self.provider}'. "
-                    f"Open backend/.env and set "
-                    f"{'GEMINI_API_KEY' if self.provider == 'gemini' else 'OPENAI_API_KEY'}."
-                ),
-            }
-
-        prompt = (
-            'Return exactly this JSON and nothing else: '
-            '{"ok": true, "message": "connection successful"}'
-        )
-        result = await self._call_llm(prompt)
-        return {
-            "ok": result is not None,
-            "provider": self.provider,
-            "model": self.model_name,
-            "response": result,
-        }
-
-    # ── LLM call dispatch ─────────────────────────────────────────────────────
-
-    async def _call_llm(self, prompt: str) -> Optional[Dict[str, Any]]:
-        if self.provider == "gemini" and settings.GEMINI_API_KEY:
-            return await self._call_gemini(prompt)
-        if self.provider == "openai" and settings.OPENAI_API_KEY:
-            return await self._call_openai(prompt)
-        return None
-
-    # ── Gemini (google-genai v2 SDK) ──────────────────────────────────────────
-
-    async def _call_gemini(self, prompt: str) -> Optional[Dict[str, Any]]:
-        """
-        Call Gemini with a hard 25-second timeout.
-
-        The google-genai SDK retries 503s internally (via tenacity) with up to 60 s
-        of back-off, which causes the browser to hit ECONNRESET before the server
-        responds.  The asyncio.wait_for() wrapper cuts that off early and lets the
-        endpoint fall back to the template response instead of dropping the connection.
-        """
-        try:
-            from google import genai
-            from google.genai import types as genai_types
-            from google.genai import errors as genai_errors  # noqa: F401
-
-            if self._gemini_client is None:
-                self._gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
-            cfg = genai_types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.7,
-                max_output_tokens=2048,
-            )
-
-            # Hard time-box the whole call (including any SDK-internal retries).
-            response = await asyncio.wait_for(
-                self._gemini_client.aio.models.generate_content(
-                    model=settings.GEMINI_MODEL,
-                    contents=prompt,
-                    config=cfg,
-                ),
-                timeout=25.0,
-            )
-
-            raw = (response.text or "").strip()
-            return self._extract_json(raw)
-
-        except asyncio.TimeoutError:
-            logger.error(
-                "Gemini call timed out after 25 s (model may be overloaded). "
-                "Falling back to template response."
-            )
-            return None
-
-        except asyncio.CancelledError:
-            # Client disconnected — propagate so asyncio can clean up the task.
-            raise
-
-        except Exception as exc:
-            self._handle_gemini_error(exc)
-            return None
-
-    @staticmethod
-    def _extract_json(raw: str) -> Optional[Dict[str, Any]]:
-        """
-        Robustly extract a JSON object from a Gemini response string.
-
-        Handles:
-         - Pure JSON  {"key": ...}
-         - Markdown fences  ```json\\n{...}\\n```
-         - Preamble text  "Here is the JSON:\\n{...}"
-        """
-        if not raw:
-            return None
-
-        # 1. Try parsing the whole string first (happy path when mime-type is honoured)
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-
-        # 2. Strip markdown code fences
-        if "```" in raw:
-            parts = raw.split("```")
-            for part in parts:
-                candidate = part.lstrip("json").strip()
-                try:
-                    return json.loads(candidate)
-                except json.JSONDecodeError:
-                    continue
-
-        # 3. Pull the first {...} block out of surrounding prose
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError:
-                pass
-
-        logger.error("Could not extract JSON from Gemini response: %.200s", raw)
-        return None
-
-    def _handle_gemini_error(self, exc: Exception) -> None:
-        """Log a Gemini error with a human-readable hint."""
-        msg = str(exc)
-        try:
-            from google.genai import errors as genai_errors  # noqa: F401
-
-            if isinstance(exc, genai_errors.ClientError):
-                code = getattr(exc, "status_code", 0) or 0
-                if code == 401 or "API_KEY" in msg.upper() or "invalid" in msg.lower():
-                    logger.error(
-                        "Gemini: invalid API key (401). "
-                        "Open backend/.env and paste a valid key at GEMINI_API_KEY=<key>"
-                    )
-                elif code == 429 or "quota" in msg.lower() or "RATE_LIMIT" in msg.upper():
-                    logger.error(
-                        "Gemini: rate limit / free-tier quota exceeded (429). "
-                        "Wait a moment or upgrade your Google AI Studio plan."
-                    )
-                elif code == 400:
-                    logger.error("Gemini: bad request (400) — check prompt length/content: %s", msg)
-                else:
-                    logger.error("Gemini client error (%s): %s", code, msg)
-
-            elif isinstance(exc, genai_errors.ServerError):
-                # Transient — reset so the next call re-creates the client
-                self._gemini_client = None
-                logger.error("Gemini server error (5xx) — will auto-retry next call: %s", msg)
-
-            else:
-                logger.error("Gemini unexpected error (%s): %s", type(exc).__name__, msg)
-
-        except ImportError:
-            logger.error("Gemini call failed: %s", msg)
-
-    # ── OpenAI ────────────────────────────────────────────────────────────────
-
-    async def _call_openai(self, prompt: str) -> Optional[Dict[str, Any]]:
-        try:
-            from openai import AsyncOpenAI  # lazy import
-
-            if self._openai_client is None:
-                self._openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-            response = await self._openai_client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert resume coach and ATS specialist. Respond only with valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.7,
-                max_tokens=1500,
-            )
-            content = response.choices[0].message.content or "{}"
-            return json.loads(content)
-
-        except Exception as exc:
-            logger.error("OpenAI call failed (%s): %s", type(exc).__name__, exc)
-            return None
 
     # ── Template fallbacks (deterministic, no API cost) ───────────────────────
 
