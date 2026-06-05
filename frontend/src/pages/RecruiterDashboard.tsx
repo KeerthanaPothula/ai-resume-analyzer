@@ -282,6 +282,10 @@ function CandidateCard({ candidate }: { candidate: CandidatePoolEntry }) {
               <p className="font-medium text-sm truncate" style={{ color: "var(--text-primary)" }}>
                 {candidate.candidate_name}
               </p>
+              {/* Applied job — the primary new info */}
+              <p className="text-xs mt-0.5 truncate font-medium text-violet-500">
+                Applied for: {candidate.applied_job_title}
+              </p>
               <div className="flex items-center gap-2 text-xs mt-0.5 flex-wrap" style={{ color: "var(--text-muted)" }}>
                 {candidate.experience_years != null && (
                   <span className="flex items-center gap-1">
@@ -311,11 +315,11 @@ function CandidateCard({ candidate }: { candidate: CandidatePoolEntry }) {
         </div>
       </div>
       <Link
-        to={`/analysis/${candidate.resume_id}`}
+        to={`/ranking/${candidate.applied_job_id}`}
         className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-500"
         style={{ borderColor: "var(--border-color)", color: "var(--text-secondary)" }}
       >
-        <Eye className="w-3.5 h-3.5" /> View Full Analysis
+        <Eye className="w-3.5 h-3.5" /> View in Rankings
       </Link>
     </motion.div>
   );
@@ -915,7 +919,7 @@ export default function RecruiterDashboard() {
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <AnimatePresence mode="popLayout">
                     {filteredCandidates.map(c => (
-                      <CandidateCard key={c.user_id} candidate={c} />
+                      <CandidateCard key={`${c.resume_id}-${c.applied_job_id}`} candidate={c} />
                     ))}
                   </AnimatePresence>
                 </div>

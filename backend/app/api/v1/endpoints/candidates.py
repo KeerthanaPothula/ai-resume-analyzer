@@ -1,9 +1,9 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.db.database import get_db
+from app.models.job import CandidateRanking, JobDescription
 from app.models.user import User, UserRole
 from app.models.resume import Resume
 from app.core.security import get_current_active_user
@@ -17,32 +17,42 @@ def list_candidates(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Return one record per unique candidate user using their latest uploaded resume.
-    Only includes candidates whose resume file still exists on disk.
+    Return one record per application made to jobs posted by this recruiter.
+    A candidate who applied to two of the recruiter's jobs appears twice.
+    ATS score is the job-specific match score set at application time.
     """
     if current_user.role.value not in ("recruiter", "admin"):
         raise HTTPException(status_code=403, detail="Only recruiters can view the candidate pool")
 
-    # Subquery: latest resume ID per user (IDs are monotonically increasing)
-    latest_sq = (
-        db.query(func.max(Resume.id).label("latest_id"))
-        .group_by(Resume.user_id)
-        .subquery()
+    # Fetch the recruiter's jobs (id + title needed for the response)
+    job_rows = (
+        db.query(JobDescription.id, JobDescription.title)
+        .filter(JobDescription.recruiter_id == current_user.id)
+        .all()
     )
+    if not job_rows:
+        return []
 
+    job_map = {j.id: j.title for j in job_rows}
+    job_ids = list(job_map.keys())
+
+    # One row per (ranking, resume, user) — i.e. one row per application
     rows = (
-        db.query(Resume, User)
+        db.query(CandidateRanking, Resume, User)
+        .join(Resume, Resume.id == CandidateRanking.resume_id)
         .join(User, User.id == Resume.user_id)
-        .join(latest_sq, latest_sq.c.latest_id == Resume.id)
-        .filter(User.role == UserRole.candidate)
-        .filter(User.is_active == True)  # noqa: E712
-        .order_by(Resume.created_at.desc())
+        .filter(
+            CandidateRanking.job_id.in_(job_ids),
+            CandidateRanking.is_applied == True,  # noqa: E712
+            User.role == UserRole.candidate,
+            User.is_active == True,  # noqa: E712
+        )
+        .order_by(CandidateRanking.score.desc())
         .all()
     )
 
     candidates = []
-    for resume, user in rows:
-        # Skip if the uploaded file no longer exists on disk (stale/deleted)
+    for ranking, resume, user in rows:
         if not os.path.exists(resume.file_path):
             continue
         candidates.append({
@@ -50,7 +60,13 @@ def list_candidates(
             "resume_id": resume.id,
             "candidate_name": resume.candidate_name or user.full_name,
             "candidate_email": resume.candidate_email or user.email,
-            "ats_score": resume.ats_score or 0,
+            # Use job-specific match score; fall back to general resume score
+            "ats_score": ranking.score or resume.ats_score or 0,
+            "applied_job_id": ranking.job_id,
+            "applied_job_title": job_map.get(ranking.job_id, "Unknown Job"),
+            "application_status": (
+                ranking.application_status.value if ranking.application_status else "applied"
+            ),
             "extracted_skills": resume.extracted_skills or [],
             "experience_years": resume.experience_years,
             "education_level": resume.education_level,

@@ -57,6 +57,9 @@ export interface CandidatePoolEntry {
   candidate_name: string;
   candidate_email: string;
   ats_score: number;
+  applied_job_id: number;
+  applied_job_title: string;
+  application_status: string;
   extracted_skills: string[];
   experience_years: number;
   education_level: string | null;
