@@ -258,6 +258,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ── Security headers ───────────────────────────────────────────────────────────
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next) -> Response:
@@ -369,10 +370,13 @@ def resend_debug():
             ),
         )
     _configured = bool(settings.RESEND_API_KEY)
-    from_addr = (
-        f"{settings.EMAILS_FROM_NAME} "
-        f"<{settings.EMAIL_FROM or settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or 'onboarding@resend.dev'}>"
+    _email = (
+        settings.EMAIL_FROM
+        or settings.RESEND_FROM_EMAIL
+        or settings.EMAILS_FROM_EMAIL
+        or "onboarding@resend.dev"
     )
+    from_addr = f"{settings.EMAILS_FROM_NAME} <{_email}>"
     return {
         "resend_configured": _configured,
         "api_key_prefix": (settings.RESEND_API_KEY[:8] + "***") if settings.RESEND_API_KEY else "(not set)",

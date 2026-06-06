@@ -114,8 +114,8 @@ def test_recruiter_updates_own_job(client, recruiter_headers):
     assert resp.json()["title"] == "New Title"
 
 
-def test_recruiter_cannot_update_other_recruiters_job(client,
-                                                       recruiter_headers, recruiter2_headers):
+def test_recruiter_cannot_update_other_recruiters_job(
+        client, recruiter_headers, recruiter2_headers):
     create = client.post("/api/v1/jobs/", json={
         "title": "Owned Job",
         "description": "Python role.",
@@ -145,8 +145,8 @@ def test_recruiter_deletes_own_job(client, recruiter_headers):
     assert confirm.status_code == 404
 
 
-def test_recruiter_cannot_delete_other_recruiters_job(client,
-                                                       recruiter_headers, recruiter2_headers):
+def test_recruiter_cannot_delete_other_recruiters_job(
+        client, recruiter_headers, recruiter2_headers):
     create = client.post("/api/v1/jobs/", json={
         "title": "Protected Job",
         "description": "Python developer.",

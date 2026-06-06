@@ -840,13 +840,13 @@ class LLMService:
         from .providers import GeminiProvider, OpenAIProvider, GroqProvider
 
         _gemini = GeminiProvider()
-        _oai    = OpenAIProvider()
-        _groq   = GroqProvider()
+        _oai = OpenAIProvider()
+        _groq = GroqProvider()
 
         # ATS analysis: Gemini → OpenAI → Groq
-        self._ats_router  = ProviderRouter([_gemini, _oai, _groq])
+        self._ats_router = ProviderRouter([_gemini, _oai, _groq])
         # Job match:     Gemini → OpenAI → Groq
-        self._job_router  = ProviderRouter([_gemini, _oai, _groq])
+        self._job_router = ProviderRouter([_gemini, _oai, _groq])
         # Career chat:   OpenAI → Gemini → Groq
         self._chat_router = ProviderRouter([_oai, _gemini, _groq])
 
