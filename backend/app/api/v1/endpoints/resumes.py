@@ -119,6 +119,7 @@ async def upload_resume(
             "upload: starting analysis for user_id=%d file=%s",
             current_user.id, unique_filename,
         )
+        db.close()  # release connection before CPU-bound analysis (same pattern as ai_feedback.py)
         result = await asyncio.to_thread(
             _analyse_resume, file_path, file_ext, current_user.full_name
         )

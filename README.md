@@ -32,7 +32,7 @@ RecruitAI is a production-grade full-stack web application that replaces spreads
 | Skills Extracted | 100+ keywords |
 | Hiring Pipeline Stages | 6 |
 | AI Providers | 3 (with automatic fallback) |
-| Automated Tests | 73 (pytest) |
+| Automated Tests | 89 (pytest) |
 
 ---
 
@@ -171,23 +171,11 @@ Browser
 
 ---
 
-## Screenshots
-
-| Screen | Preview |
-|---|---|
-| **Landing Page** | ![Landing](screenshots/landing-page.png) |
-| **Authentication** | ![Auth](screenshots/auth-page.png) |
-| **Candidate Dashboard** | ![Dashboard](screenshots/candidate-dashboard.png) |
-| **Resume Analysis** | ![Analysis](screenshots/resume-analysis.png) |
-| **AI Feedback** | ![AI Feedback](screenshots/ai-feedback.png) |
-
----
-
 ## Installation
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - Node.js 20+
 - Docker & Docker Compose (optional, for full-stack local run)
 
@@ -598,10 +586,10 @@ ai-resume-analyzer/
 │   │       │   │                    #   groq_provider.py, __init__.py
 │   │       │   ├── llm_service.py   # ProviderRouter, LLMService, all prompts
 │   │       │   └── skill_extractor.py
-│   │       └── email/               # Resend transactional email service
+│   │       └── email.py             # Resend transactional email service
 │   ├── alembic/
 │   │   └── versions/                # 8 versioned migration scripts
-│   ├── tests/                       # 73 pytest tests
+│   ├── tests/                       # 89 pytest tests
 │   ├── Dockerfile
 │   ├── .dockerignore
 │   └── requirements.txt
