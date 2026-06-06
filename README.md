@@ -3,8 +3,8 @@
 <div align="center">
 
 [![Backend CI](https://github.com/KeerthanaPothula/ai-resume-analyzer/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/KeerthanaPothula/ai-resume-analyzer/actions/workflows/backend-ci.yml)
-[![Tests](https://img.shields.io/badge/tests-73%20passing-brightgreen?style=flat-square)](backend/tests/)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python)](https://python.org)
+[![codecov](https://codecov.io/gh/KeerthanaPothula/ai-resume-analyzer/branch/main/graph/badge.svg?style=flat-square)](https://codecov.io/gh/KeerthanaPothula/ai-resume-analyzer)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18.2-61DAFB?style=flat-square&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://typescriptlang.org)
@@ -100,7 +100,7 @@ RecruitAI is a production-grade full-stack web application that replaces spreads
 | SQLAlchemy | 2.0 | ORM with async-safe session management |
 | Alembic | 1.13 | Database schema migrations |
 | Pydantic v2 | latest | Data validation and settings management |
-| python-jose | latest | JWT creation and verification |
+| PyJWT | 2.x | JWT creation and verification |
 | passlib + bcrypt | latest | Password hashing |
 | slowapi | latest | IP-based rate limiting |
 | PyMuPDF (fitz) | latest | PDF text extraction |
@@ -173,18 +173,13 @@ Browser
 
 ## Screenshots
 
-> Add screenshots to `screenshots/` and update the paths below after deployment.
-
 | Screen | Preview |
 |---|---|
 | **Landing Page** | ![Landing](screenshots/landing-page.png) |
+| **Authentication** | ![Auth](screenshots/auth-page.png) |
 | **Candidate Dashboard** | ![Dashboard](screenshots/candidate-dashboard.png) |
-| **Resume Upload** | ![Upload](screenshots/resume-upload.png) |
-| **ATS Analysis** | ![ATS](screenshots/ats-analysis.png) |
-| **Job Match** | ![Match](screenshots/job-match.png) |
-| **AI Career Coach** | ![Chat](screenshots/career-coach.png) |
-| **Recruiter Rankings** | ![Rankings](screenshots/recruiter-rankings.png) |
-| **Admin Dashboard** | ![Admin](screenshots/admin-dashboard.png) |
+| **Resume Analysis** | ![Analysis](screenshots/resume-analysis.png) |
+| **AI Feedback** | ![AI Feedback](screenshots/ai-feedback.png) |
 
 ---
 
@@ -255,7 +250,7 @@ npm run dev
 |---|---|
 | Frontend | http://localhost:5173 |
 | Backend | http://localhost:8000 |
-| API Docs (dev only) | http://localhost:8000/docs |
+| API Docs | http://localhost:8000/docs |
 
 ---
 
@@ -273,7 +268,7 @@ npm run dev
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | `60` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | No | `7` | Refresh token lifetime |
 | **Application** | | | |
-| `DEBUG` | No | `false` | Enables `/docs`, `/redoc`, and debug endpoints |
+| `DEBUG` | No | `false` | Enables debug-only endpoints (`/api/v1/debug/*`). `/docs` and `/redoc` are always available. |
 | `UPLOAD_DIR` | No | `uploads` | Directory for uploaded resume files |
 | `MAX_FILE_SIZE_MB` | No | `10` | Maximum resume upload size |
 | `ENABLE_EMBEDDINGS` | No | `false` | Enable sentence-transformers semantic scoring. Requires ~500 MB RAM. |
@@ -311,7 +306,7 @@ npm run dev
 
 ## API Overview
 
-Base path: `/api/v1` · Interactive docs: `GET /docs` (Swagger) · `GET /redoc`
+Base path: `/api/v1` · Interactive docs: [`GET /docs`](https://recruitai-backend-f6pi.onrender.com/docs) (Swagger) · [`GET /redoc`](https://recruitai-backend-f6pi.onrender.com/redoc)
 
 All endpoints require `Authorization: Bearer <token>` except public auth routes.
 
@@ -510,13 +505,15 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-**73 tests pass in ~12 seconds.**
-
 ```
-tests/test_auth.py         — register, login, JWT, refresh rotation, logout, email verify
-tests/test_permissions.py  — candidate / recruiter / admin RBAC boundary checks
-tests/test_resumes.py      — upload, download, authenticated access control
-tests/test_scoring.py      — ATS scoring, skill extraction, embedding-disabled path
+tests/test_auth.py          — register, login, JWT, refresh rotation, logout, email verify
+tests/test_auth_flows.py    — extended auth edge cases
+tests/test_permissions.py   — candidate / recruiter / admin RBAC boundary checks
+tests/test_jobs.py          — job creation, update, delete, access control
+tests/test_resumes.py       — upload, download, authenticated access control
+tests/test_rankings.py      — applicant ranking, re-rank, status updates
+tests/test_scoring.py       — ATS scoring, skill extraction, embedding-disabled path
+tests/test_smtp_fail_scenario.py — email fallback behavior
 ```
 
 Test infrastructure: isolated SQLite database per session, `get_db` dependency override for full session isolation, `unittest.mock.patch` to stub the PDF parsing pipeline, environment variables injected before Pydantic Settings instantiation.

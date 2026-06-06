@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -66,7 +67,7 @@ def hash_token(raw_token: str) -> str:
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         exc_name = type(exc).__name__
         token_preview = (token or "")[:12] + "..." if token else "(empty)"
         logger.warning("decode_token: %s — token_prefix=%s", exc_name, token_preview)

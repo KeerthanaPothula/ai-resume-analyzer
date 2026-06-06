@@ -1,5 +1,6 @@
 {
-  "name": "ai-resume-platform",
+  "name": "recruitai",
+  "description": "AI-powered resume analysis and candidate ranking platform",
   "private": true,
   "version": "1.0.0",
   "type": "module",

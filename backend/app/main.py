@@ -229,10 +229,8 @@ app = FastAPI(
     title=settings.APP_NAME,
     description="Production-grade AI-powered resume analysis and candidate ranking system",
     version="1.0.0",
-    # Swagger UI and ReDoc are only available when DEBUG=True.
-    # In production, set DEBUG=False (the default) to hide the API schema.
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
 )
 
@@ -268,7 +266,20 @@ async def security_headers_middleware(request: Request, call_next) -> Response:
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    # Swagger UI and ReDoc load CSS/JS from cdn.jsdelivr.net — allow that for docs paths only.
+    # All API endpoints keep the strict default-src 'none' policy.
+    if request.url.path in ("/docs", "/redoc", "/openapi.json"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; "
+            "script-src 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; "
+            "img-src 'self' data: https://fastapi.tiangolo.com; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
     return response
 
 
