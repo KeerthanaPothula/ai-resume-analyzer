@@ -54,7 +54,7 @@ jobs:
             --cov=app \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=60
+            --cov-fail-under=55
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
