@@ -72,6 +72,51 @@ RecruitAI is a production-grade full-stack web application that replaces spreads
 
 ---
 
+## Screenshots
+
+### Candidate Experience
+
+#### Candidate Dashboard
+Track resumes, ATS scores, skill insights, and application progress from a unified dashboard.
+
+![Candidate Dashboard](screenshots/candidate-dashboard.png)
+
+#### Resume Analysis
+AI-powered ATS scoring, strengths analysis, profile radar, and personalized improvement recommendations.
+
+![Resume Analysis](screenshots/resume-analysis.png)
+
+#### Job Match Analyzer
+Compare resumes against job descriptions with AI-generated match scores, skill-gap analysis, and interview preparation insights.
+
+![Job Match Analyzer](screenshots/job-match-analyzer.png)
+
+#### AI Career Coach
+Interactive AI assistant that provides career guidance, interview preparation, skill recommendations, and resume-based coaching.
+
+![AI Career Coach](screenshots/ai-career-coach.png)
+
+### Recruiter Experience
+
+#### Recruiter Dashboard
+Manage job postings, candidate pipelines, shortlists, interviews, and recruitment analytics in one place.
+
+![Recruiter Dashboard](screenshots/recruiter-dashboard.png)
+
+#### Post a Job
+Create detailed job descriptions and leverage AI-powered candidate ranking and matching.
+
+![Post a Job](screenshots/post-job.png)
+
+### Platform Administration
+
+#### Admin Dashboard
+Monitor platform activity, user distribution, ATS trends, recruiter engagement, and overall system health.
+
+![Admin Dashboard](screenshots/admin-dashboard.png)
+
+---
+
 ## Tech Stack
 
 ### Frontend
