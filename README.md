@@ -36,6 +36,32 @@ RecruitAI is a production-grade full-stack web application that replaces spreads
 
 ---
 
+## Table of Contents
+
+- [Features](#features)
+- [Platform Highlights](#platform-highlights)
+- [Screenshots](#screenshots)
+  - [Landing Page](#landing-page)
+  - [Candidate Experience](#candidate-experience)
+  - [Recruiter Experience](#recruiter-experience)
+  - [Platform Administration](#platform-administration)
+- [Project Highlights](#project-highlights)
+- [Tech Stack](#tech-stack)
+- [System Architecture](#system-architecture)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [API Overview](#api-overview)
+- [Database Schema](#database-schema)
+- [Deployment](#deployment)
+- [Running Tests](#running-tests)
+- [Challenges & Solutions](#challenges--solutions)
+- [Project Structure](#project-structure)
+- [Future Improvements](#future-improvements)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## Features
 
 ### For Candidates
@@ -72,48 +98,106 @@ RecruitAI is a production-grade full-stack web application that replaces spreads
 
 ---
 
+## Platform Highlights
+
+- ✅ AI Resume Analysis
+- ✅ ATS Optimization
+- ✅ Job Match Analyzer
+- ✅ AI Career Coach
+- ✅ Candidate Ranking
+- ✅ Applicant Tracking System
+- ✅ Interview Preparation
+- ✅ Recruiter Pipeline Management
+- ✅ Real-Time Notifications
+- ✅ Multi-Provider AI Fallback
+- ✅ JWT Authentication & RBAC
+- ✅ Production Deployment (Vercel + Render + Neon)
+
+---
+
 ## Screenshots
+
+### Landing Page
+
+#### Home Page
+
+![Home Page](screenshots/home-page.png)
+
+Modern AI-powered recruitment platform landing page showcasing ATS optimization, AI candidate ranking, resume analysis, and recruiter workflow automation.
+
+---
 
 ### Candidate Experience
 
 #### Candidate Dashboard
-Track resumes, ATS scores, skill insights, and application progress from a unified dashboard.
 
 ![Candidate Dashboard](screenshots/candidate-dashboard.png)
 
+Track resumes, ATS scores, skill insights, and application progress from a unified dashboard.
+
 #### Resume Analysis
-AI-powered ATS scoring, strengths analysis, profile radar, and personalized improvement recommendations.
 
 ![Resume Analysis](screenshots/resume-analysis.png)
 
+AI-powered ATS scoring, strengths analysis, profile radar, and personalized improvement recommendations.
+
 #### Job Match Analyzer
-Compare resumes against job descriptions with AI-generated match scores, skill-gap analysis, and interview preparation insights.
 
 ![Job Match Analyzer](screenshots/job-match-analyzer.png)
 
+Compare resumes against job descriptions with AI-generated match scores, skill-gap analysis, and interview preparation insights.
+
 #### AI Career Coach
-Interactive AI assistant that provides career guidance, interview preparation, skill recommendations, and resume-based coaching.
 
 ![AI Career Coach](screenshots/ai-career-coach.png)
+
+Interactive AI assistant that provides career guidance, interview preparation, skill recommendations, and resume-based coaching.
+
+---
 
 ### Recruiter Experience
 
 #### Recruiter Dashboard
-Manage job postings, candidate pipelines, shortlists, interviews, and recruitment analytics in one place.
 
 ![Recruiter Dashboard](screenshots/recruiter-dashboard.png)
 
+Manage job postings, candidate pipelines, AI-powered candidate ranking, interviews, and recruitment analytics in one place.
+
 #### Post a Job
-Create detailed job descriptions and leverage AI-powered candidate ranking and matching.
 
 ![Post a Job](screenshots/post-job.png)
+
+Create detailed job descriptions and leverage AI-powered candidate ranking and matching.
+
+---
 
 ### Platform Administration
 
 #### Admin Dashboard
-Monitor platform activity, user distribution, ATS trends, recruiter engagement, and overall system health.
 
 ![Admin Dashboard](screenshots/admin-dashboard.png)
+
+Monitor platform activity, user distribution, ATS trends, recruiter engagement, and overall system health.
+
+---
+
+## Project Highlights
+
+- **Multi-provider AI routing with automatic failover** — Built a `BaseProvider` ABC, three concrete provider implementations (Gemini, OpenAI, Groq), and a `ProviderRouter` that routes by task and fails over transparently on quota/rate-limit/outage. Structured logs include `provider_used`, `fallback_triggered`, `fallback_chain`, and `latency_ms` per call.
+
+- **Production database session management** — Diagnosed and resolved a SQLAlchemy connection pool exhaustion bug specific to async LLM endpoints: DB connections are now explicitly released before long-running I/O via `db.close()`, allowing the pool to serve concurrent non-AI requests without increasing pool size.
+
+- **Full-stack TypeScript + Python application** — React 18 + TypeScript frontend with Vite, TanStack Query v5, and Zustand; FastAPI async backend with SQLAlchemy 2.0 and Pydantic v2 for strict schema validation end-to-end. Transparent access token refresh via Axios interceptor with in-flight request queuing.
+
+- **Multi-factor ATS scoring engine** — Weighted composite score combining skill keyword overlap, experience-year matching, education-level matching, and optional semantic similarity via sentence-transformers cosine similarity — with graceful degradation when embeddings are disabled (default on 512 MB free tier).
+
+- **8-migration Alembic schema history** — Database schema evolved through 8 versioned Alembic migrations: initial tables, application tracking status, email verification tokens, refresh/reset token hashing, admin bootstrap, composite performance indexes, per-user question deduplication history, and real-time notifications.
+
+- **Six-stage applicant tracking pipeline** — Complete recruitment workflow (apply → under_review → shortlisted → interview_scheduled → accepted/rejected) with `is_applied` integrity guard (prevents non-applicants from appearing in rankings), interview scheduling with meeting links and custom instructions, and in-app notifications on every status change.
+
+- **Serverless-ready infrastructure** — Backend runs on Render Docker (free tier, 512 MB RAM); database migrated to Neon PostgreSQL serverless with `pool_pre_ping=True` for connection keep-alive; frontend on Vercel CDN with automatic preview deployments per branch.
+
+- **Security by default** — JWT refresh token rotation with bcrypt-hashed storage (plain tokens never written to DB), HSTS and CSP response headers, IP-based rate limiting on all auth and AI endpoints, CORS allowlist with Vercel preview URL support, and `.dockerignore` preventing secrets from entering the Docker build context.
 
 ---
 
@@ -652,26 +736,6 @@ ai-resume-analyzer/
 ├── render.yaml                      # Render deployment configuration
 └── .env.example                     # Template for all environment variables
 ```
-
----
-
-## Project Highlights
-
-- **Multi-provider AI routing with automatic failover** — Built a `BaseProvider` ABC, three concrete provider implementations (Gemini, OpenAI, Groq), and a `ProviderRouter` that routes by task and fails over transparently on quota/rate-limit/outage. Structured logs include `provider_used`, `fallback_triggered`, `fallback_chain`, and `latency_ms` per call.
-
-- **Production database session management** — Diagnosed and resolved a SQLAlchemy connection pool exhaustion bug specific to async LLM endpoints: DB connections are now explicitly released before long-running I/O via `db.close()`, allowing the pool to serve concurrent non-AI requests without increasing pool size.
-
-- **Full-stack TypeScript + Python application** — React 18 + TypeScript frontend with Vite, TanStack Query v5, and Zustand; FastAPI async backend with SQLAlchemy 2.0 and Pydantic v2 for strict schema validation end-to-end. Transparent access token refresh via Axios interceptor with in-flight request queuing.
-
-- **Multi-factor ATS scoring engine** — Weighted composite score combining skill keyword overlap, experience-year matching, education-level matching, and optional semantic similarity via sentence-transformers cosine similarity — with graceful degradation when embeddings are disabled (default on 512 MB free tier).
-
-- **8-migration Alembic schema history** — Database schema evolved through 8 versioned Alembic migrations: initial tables, application tracking status, email verification tokens, refresh/reset token hashing, admin bootstrap, composite performance indexes, per-user question deduplication history, and real-time notifications.
-
-- **Six-stage applicant tracking pipeline** — Complete recruitment workflow (apply → under_review → shortlisted → interview_scheduled → accepted/rejected) with `is_applied` integrity guard (prevents non-applicants from appearing in rankings), interview scheduling with meeting links and custom instructions, and in-app notifications on every status change.
-
-- **Serverless-ready infrastructure** — Backend runs on Render Docker (free tier, 512 MB RAM); database migrated to Neon PostgreSQL serverless with `pool_pre_ping=True` for connection keep-alive; frontend on Vercel CDN with automatic preview deployments per branch.
-
-- **Security by default** — JWT refresh token rotation with bcrypt-hashed storage (plain tokens never written to DB), HSTS and CSP response headers, IP-based rate limiting on all auth and AI endpoints, CORS allowlist with Vercel preview URL support, and `.dockerignore` preventing secrets from entering the Docker build context.
 
 ---
 
