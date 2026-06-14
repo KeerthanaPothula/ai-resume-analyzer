@@ -16,9 +16,36 @@
 
 **AI-powered resume analysis, ATS optimization, and candidate ranking platform for job seekers and recruiters.**
 
-[Live Demo](https://ai-resume-analyzer-nine-peach.vercel.app) · [API Docs](https://recruitai-backend-f6pi.onrender.com/docs) · [Report Bug](https://github.com/KeerthanaPothula/ai-resume-analyzer/issues)
-
 </div>
+
+---
+
+## Why RecruitAI?
+
+RecruitAI is a production-grade AI recruitment platform that combines ATS optimization, resume intelligence, semantic matching, candidate ranking, interview preparation, and recruiter workflow automation into a unified hiring ecosystem.
+
+Key capabilities:
+
+- AI Resume Analysis
+- ATS Optimization
+- Candidate Ranking
+- Job Match Analyzer
+- AI Career Coach
+- Recruiter Pipeline Management
+- Real-Time Notifications
+- Multi-Provider LLM Architecture
+- JWT Authentication & RBAC
+- Production Deployment on Vercel + Render + Neon
+
+---
+
+## Live Demo
+
+🌐 Frontend: https://ai-resume-analyzer-nine-peach.vercel.app
+
+📚 API Docs: https://recruitai-backend-f6pi.onrender.com/docs
+
+💻 GitHub Repository: https://github.com/KeerthanaPothula/ai-resume-analyzer
 
 ---
 
@@ -38,6 +65,8 @@ RecruitAI is a production-grade full-stack web application that replaces spreads
 
 ## Table of Contents
 
+- [Why RecruitAI?](#why-recruitai)
+- [Live Demo](#live-demo)
 - [Features](#features)
 - [Platform Highlights](#platform-highlights)
 - [Screenshots](#screenshots)
