@@ -593,8 +593,8 @@ export default function CandidateDashboard() {
           </div>
         </div>
 
-        {/* ── Application Status Section ── */}
-        <div className="space-y-4">
+        {/* ── Application Progress ── */}
+        <div className="card p-5 md:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
@@ -606,11 +606,6 @@ export default function CandidateDashboard() {
                 </span>
               )}
             </div>
-            {recentUpdates.length > 0 && (
-              <span className="text-xs text-sky-500 flex items-center gap-1">
-                <Bell className="w-3 h-3" /> {recentUpdates.length} new update{recentUpdates.length !== 1 ? 's' : ''}
-              </span>
-            )}
           </div>
 
           {appsLoading ? (
@@ -618,34 +613,32 @@ export default function CandidateDashboard() {
               {[1, 2].map(i => <SkeletonCard key={i} lines={3} />)}
             </div>
           ) : applications.length === 0 ? (
-            <div className="card">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-center justify-center py-16 px-6 text-center"
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center py-16 px-6 text-center"
+            >
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                style={{ backgroundColor: "var(--border-color)" }}
               >
-                <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                  style={{ backgroundColor: "var(--border-color)" }}
-                >
-                  <Briefcase className="w-8 h-8" style={{ color: "var(--text-muted)" }} />
-                </div>
-                <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
-                  You have not applied to any jobs yet
-                </h3>
-                <p className="text-sm max-w-xs mb-6" style={{ color: "var(--text-muted)" }}>
-                  Match your resume against a job posting and a recruiter will review your application. Your status will appear here once reviewed.
-                </p>
-                <div className="flex items-center gap-3 flex-wrap justify-center">
-                  <button onClick={() => navigate("/job-match")} className="btn-primary text-sm">
-                    <Target className="w-4 h-4" /> Browse Jobs
-                  </button>
-                  <button onClick={() => navigate("/upload")} className="btn-ghost text-sm">
-                    <Upload className="w-4 h-4" /> Upload Resume
-                  </button>
-                </div>
-              </motion.div>
-            </div>
+                <Briefcase className="w-8 h-8" style={{ color: "var(--text-muted)" }} />
+              </div>
+              <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+                You have not applied to any jobs yet
+              </h3>
+              <p className="text-sm max-w-xs mb-6" style={{ color: "var(--text-muted)" }}>
+                Match your resume against a job posting and a recruiter will review your application. Your status will appear here once reviewed.
+              </p>
+              <div className="flex items-center gap-3 flex-wrap justify-center">
+                <button onClick={() => navigate("/job-match")} className="btn-primary text-sm">
+                  <Target className="w-4 h-4" /> Browse Jobs
+                </button>
+                <button onClick={() => navigate("/upload")} className="btn-ghost text-sm">
+                  <Upload className="w-4 h-4" /> Upload Resume
+                </button>
+              </div>
+            </motion.div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
               <AnimatePresence mode="popLayout">

@@ -1,17 +1,39 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Upload, Briefcase, BarChart3,
   LogOut, Brain, ChevronRight,
   Sun, Moon, Menu, X, Bell, UserCircle, Target,
+  CheckCheck, Loader2, BellOff,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
 import { useThemeStore, applyTheme } from "../../stores/themeStore";
 import { notificationApi } from "../../lib/api";
 import toast from "react-hot-toast";
+
+interface NotificationItem {
+  id: number;
+  title: string;
+  message: string;
+  type: string | null;
+  read: boolean;
+  action_url: string | null;
+  created_at: string;
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 interface NavItem {
   label: string;
@@ -306,6 +328,9 @@ function SidebarContent({ onClose }: SidebarContentProps) {
 
 function NotificationBell() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data } = useQuery({
     queryKey: ["notifications-unread"],
@@ -316,12 +341,63 @@ function NotificationBell() {
 
   const unreadCount: number = (data as any)?.count ?? 0;
 
+  const { data: notifications = [], isLoading } = useQuery<NotificationItem[]>({
+    queryKey: ["notifications"],
+    queryFn: () => notificationApi.list().then(r => r.data),
+    enabled: open,
+    staleTime: 1000 * 15,
+  });
+
+  // Close on outside click — listener is added/removed on every open/close
+  // toggle, so the panel can be reopened any number of times.
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const markRead = useMutation({
+    mutationFn: (id: number) => notificationApi.markRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+    },
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: () => notificationApi.markAllRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      toast.success("All notifications marked as read");
+    },
+  });
+
+  const handleSelect = (n: NotificationItem) => {
+    if (!n.read) markRead.mutate(n.id);
+    setOpen(false);
+    if (n.action_url) navigate(n.action_url);
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
-        onClick={() => navigate("/notifications")}
+        onClick={() => setOpen((v) => !v)}
         className="btn-ghost p-2 rounded-lg"
         aria-label="Notifications"
+        aria-expanded={open}
       >
         <Bell className="w-4 h-4" />
       </button>
@@ -330,6 +406,86 @@ function NotificationBell() {
           {unreadCount > 9 ? "9+" : unreadCount}
         </span>
       )}
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-80 max-h-[28rem] overflow-y-auto rounded-2xl shadow-2xl z-50"
+            style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)" }}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b sticky top-0"
+              style={{ borderColor: "var(--border-color)", backgroundColor: "var(--bg-card)" }}
+            >
+              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                Notifications
+              </p>
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                  className="text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" /> Mark all read
+                </button>
+              )}
+            </div>
+
+            {isLoading ? (
+              <div className="p-6 flex justify-center">
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--text-muted)" }} />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="p-6 flex flex-col items-center text-center gap-2">
+                <BellOff className="w-5 h-5" style={{ color: "var(--text-muted)" }} />
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>No notifications yet</p>
+              </div>
+            ) : (
+              <div className="py-1">
+                {notifications.slice(0, 8).map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleSelect(n)}
+                    className="w-full text-left flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-slate-500/5"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                      style={{ backgroundColor: n.read ? "var(--border-color)" : "#0ea5e9" }}
+                    />
+                    <span className="flex-1 min-w-0">
+                      <p className={`text-xs ${n.read ? "" : "font-semibold"}`} style={{ color: "var(--text-primary)" }}>
+                        {n.title}
+                      </p>
+                      <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>
+                        {n.message}
+                      </p>
+                      <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
+                        {timeAgo(n.created_at)}
+                      </p>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="border-t px-4 py-2.5 sticky bottom-0" style={{ borderColor: "var(--border-color)", backgroundColor: "var(--bg-card)" }}>
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  navigate("/notifications");
+                }}
+                className="w-full text-center text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+              >
+                View all notifications
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -188,6 +188,9 @@ export const resumeApi = {
   list: () => api.get("/resumes/"),
   get: (id: number) => api.get(`/resumes/${id}`),
   delete: (id: number) => api.delete(`/resumes/${id}`),
+  // Fetched as a blob so the auth token (attached by the request interceptor)
+  // travels with the request — a plain <a href> would hit the API without it.
+  getFile: (id: number) => api.get(`/resumes/${id}/file`, { responseType: "blob" }),
 };
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────

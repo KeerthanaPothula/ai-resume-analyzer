@@ -18,6 +18,7 @@ import SkillBadge from '../components/ui/SkillBadge';
 import ScoreRing from '../components/ui/ScoreRing';
 import EmptyState from '../components/ui/EmptyState';
 import { jobApi, rankingApi } from '../lib/api';
+import { openResumeFile } from '../utils/openResumeFile';
 import {
   JobDescription,
   ApplicationStatus, APPLICATION_STATUS_LABELS, APPLICATION_STATUS_COLORS,
@@ -106,6 +107,13 @@ function CandidateDetail({
   const [meetingLink, setMeetingLink] = useState(entry.meeting_link || '');
   const [instructions, setInstructions] = useState(entry.interview_instructions || '');
   const [saving, setSaving] = useState(false);
+  const [viewingResume, setViewingResume] = useState(false);
+
+  const handleViewResume = async () => {
+    setViewingResume(true);
+    await openResumeFile(entry.resume_id, entry.candidate_name ? `${entry.candidate_name}-resume` : undefined);
+    setViewingResume(false);
+  };
 
   const isDirty =
     status !== (entry.application_status || 'applied') ||
@@ -164,6 +172,14 @@ function CandidateDetail({
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={entry.application_status || 'applied'} />
+            <button
+              onClick={handleViewResume}
+              disabled={viewingResume}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-sky-500/10 text-sky-500 border border-sky-500/20 hover:bg-sky-500/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {viewingResume ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+              View Resume
+            </button>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-500/10 transition-colors">
               <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
             </button>

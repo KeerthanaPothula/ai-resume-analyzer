@@ -6,7 +6,7 @@ import {
   Briefcase, Plus, Users, BarChart3, Trash2, ChevronRight,
   MapPin, Clock, Search, Star, Target, TrendingUp, Edit2,
   X, Save, GraduationCap, Filter, ChevronDown,
-  UserCheck, Zap, Eye, Award, Calendar,
+  UserCheck, Zap, Eye, Award, Calendar, FileText, Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -20,6 +20,7 @@ import EmptyState from "../components/ui/EmptyState";
 import { SkeletonStatsRow, SkeletonCard } from "../components/ui/Skeleton";
 import ErrorBoundary from "../components/error/ErrorBoundary";
 import { candidateApi, dashboardApi, jobApi } from "../lib/api";
+import { openResumeFile } from "../utils/openResumeFile";
 import { useAuth } from "../hooks/useAuth";
 import { useThemeStore } from "../stores/themeStore";
 import { CandidatePoolEntry } from "../types";
@@ -264,6 +265,13 @@ function JobCard({
 function CandidateCard({ candidate }: { candidate: CandidatePoolEntry }) {
   const score = candidate.ats_score || 0;
   const scoreColor = score >= 70 ? "text-emerald-500" : score >= 50 ? "text-amber-500" : "text-red-400";
+  const [viewingResume, setViewingResume] = useState(false);
+
+  const handleViewResume = async () => {
+    setViewingResume(true);
+    await openResumeFile(candidate.resume_id, candidate.candidate_name ? `${candidate.candidate_name}-resume` : undefined);
+    setViewingResume(false);
+  };
 
   return (
     <motion.div
@@ -314,13 +322,24 @@ function CandidateCard({ candidate }: { candidate: CandidatePoolEntry }) {
           </div>
         </div>
       </div>
-      <Link
-        to={`/ranking/${candidate.applied_job_id}`}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-500"
-        style={{ borderColor: "var(--border-color)", color: "var(--text-secondary)" }}
-      >
-        <Eye className="w-3.5 h-3.5" /> View in Rankings
-      </Link>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleViewResume}
+          disabled={viewingResume}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all hover:bg-sky-500/10 hover:border-sky-500/30 hover:text-sky-500 disabled:opacity-50"
+          style={{ borderColor: "var(--border-color)", color: "var(--text-secondary)" }}
+        >
+          {viewingResume ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+          Resume
+        </button>
+        <Link
+          to={`/ranking/${candidate.applied_job_id}`}
+          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium border transition-all hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-500"
+          style={{ borderColor: "var(--border-color)", color: "var(--text-secondary)" }}
+        >
+          <Eye className="w-3.5 h-3.5" /> View in Rankings
+        </Link>
+      </div>
     </motion.div>
   );
 }
